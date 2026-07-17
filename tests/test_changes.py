@@ -18,23 +18,38 @@ def _translation_tree(path):
         yaml.safe_dump(make_config().model_dump(mode="json"), allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
-    (path / "overrides").mkdir()
-    (path / "overrides" / "wizard.po").write_text("base\n", encoding="utf-8")
+    (path / "translations" / "wizard").mkdir(parents=True)
+    (path / "translations" / "wizard" / "save--000000000000.translation.md").write_text(
+        "base\n", encoding="utf-8"
+    )
     (path / "upstream").mkdir()
     (path / "upstream" / "wizard.po").write_text("immutable\n", encoding="utf-8")
 
 
-def test_translation_pr_accepts_overlay_change(tmp_path):
+def test_translation_pr_accepts_markdown_form_change(tmp_path):
     base = tmp_path / "base"
     head = tmp_path / "head"
     _translation_tree(base)
     shutil.copytree(base, head)
-    (head / "overrides" / "wizard.po").write_text("translated\n", encoding="utf-8")
+    unit = head / "translations" / "wizard" / "save--000000000000.translation.md"
+    unit.write_text("translated\n", encoding="utf-8")
 
     report = validate_translation_pr(base, head, "sync/v4.32")
 
-    assert report["changed_paths"] == ["overrides/wizard.po"]
+    assert report["changed_paths"] == ["translations/wizard/save--000000000000.translation.md"]
     assert report["locale_version_bumped"] is False
+
+
+def test_translation_pr_rejects_gettext_overlay(tmp_path):
+    base = tmp_path / "base"
+    head = tmp_path / "head"
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    (head / "overrides").mkdir()
+    (head / "overrides" / "wizard.po").write_text("translated\n", encoding="utf-8")
+
+    with pytest.raises(LocaleToolError, match="forbidden paths"):
+        validate_translation_pr(base, head, "sync/v4.32")
 
 
 def test_translation_pr_rejects_upstream_change(tmp_path):

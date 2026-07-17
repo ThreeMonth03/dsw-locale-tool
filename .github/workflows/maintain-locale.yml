@@ -133,9 +133,15 @@ jobs:
             --version "${{ matrix.version }}" \
             --output locale
 
+      - name: Refresh translation forms
+        id: forms
+        if: steps.upstream.outcome == 'success'
+        continue-on-error: true
+        run: dsw-locale refresh-tree --root locale
+
       - name: Audit synchronized locale
         id: audit
-        if: steps.upstream.outcome == 'success'
+        if: steps.forms.outcome == 'success'
         continue-on-error: true
         run: |
           dsw-locale audit \
@@ -167,6 +173,7 @@ jobs:
       - name: Commit safe synchronization
         if: >-
           steps.upstream.outcome == 'success' &&
+          steps.forms.outcome == 'success' &&
           ((steps.audit.outcome == 'success' && steps.package.outcome == 'success') ||
           steps.branch.outputs.created == 'true')
         working-directory: locale
@@ -176,7 +183,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add upstream
+          git add upstream translations
           changed=false
           if ! git diff --cached --quiet; then
             git commit -m "Sync official locale baseline for $VERSION"
@@ -192,6 +199,7 @@ jobs:
         if: >-
           always() &&
           (steps.upstream.outcome == 'failure' ||
+          steps.forms.outcome == 'failure' ||
           steps.audit.outcome == 'failure' ||
           steps.build.outcome == 'failure' ||
           steps.package.outcome == 'failure')
@@ -199,6 +207,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ matrix.version }}
           UPSTREAM_OUTCOME: ${{ steps.upstream.outcome }}
+          FORMS_OUTCOME: ${{ steps.forms.outcome }}
           AUDIT_OUTCOME: ${{ steps.audit.outcome }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           PACKAGE_OUTCOME: ${{ steps.package.outcome }}
@@ -206,7 +215,7 @@ jobs:
         run: |
           title="[locale maintenance] $VERSION requires attention"
           issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')
-          body="Automated locale maintenance failed for $VERSION. upstream=$UPSTREAM_OUTCOME, audit=$AUDIT_OUTCOME, build=$BUILD_OUTCOME, package=$PACKAGE_OUTCOME. Run: $RUN_URL"
+          body="Automated locale maintenance failed for $VERSION. upstream=$UPSTREAM_OUTCOME, forms=$FORMS_OUTCOME, audit=$AUDIT_OUTCOME, build=$BUILD_OUTCOME, package=$PACKAGE_OUTCOME. Run: $RUN_URL"
           if [ -n "$issue" ]; then
             gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$body"
           else
@@ -227,6 +236,7 @@ jobs:
         if: >-
           always() &&
           (steps.upstream.outcome == 'failure' ||
+          steps.forms.outcome == 'failure' ||
           steps.audit.outcome == 'failure' ||
           steps.build.outcome == 'failure' ||
           steps.package.outcome == 'failure')

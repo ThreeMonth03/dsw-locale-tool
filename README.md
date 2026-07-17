@@ -1,31 +1,31 @@
 # DSW Locale Tool
 
-`dsw-locale-tool` 管理 DSW UI 語系的本地補翻層。它不取代 Weblate；它把官方
-`wizard-locales` 當成 baseline，再套用本地覆蓋與上游 POT 尚未收錄的字串。
+`dsw-locale-tool` builds and previews local DSW UI translations on top of the official
+[`wizard-locales`](https://github.com/ds-wizard/wizard-locales) catalogs.
 
-翻譯內容與程式碼刻意分開：
+Translation content and automation are kept in separate repositories:
 
-- 本 repo：同步、稽核、合併、打包與 CI。
-- `dsw-ui-locales-zh_Hant`：翻譯設定、詞彙表、`overrides` 與 `extras`。
+- [dsw-ui-locales-zh_Hant](https://github.com/ThreeMonth03/dsw-ui-locales-zh_Hant) contains
+  the human-editable Markdown translation forms.
+- This repository contains synchronization, validation, packaging, preview, and deployment tools.
 
-## 開發
+Start with the [documentation](https://www.threemonth03.com/dsw-locale-tool/). Translators do not
+need to install this project or edit code.
+
+## Development
 
 ```console
 make install-dev
 make check
 ```
 
-## CLI
+## Common commands
 
 ```console
-dsw-locale validate-config ../dsw-ui-locales-zh_Hant/translation-config.yml
-dsw-locale version-report --config translation-config.yml --repository-root . --fail-on-drift
-dsw-locale reconcile-versions --config translation-config.yml
-dsw-locale sync-upstream --config translation-config.yml --version v4.32
+dsw-locale sync-upstream --config translation-config.yml --version v4.32 --output .
+dsw-locale refresh-tree --root .
 dsw-locale audit --root . --report-dir reports
 dsw-locale build-source --config translation-config.yml --version v4.32 --root . --output build/locale
 ```
 
-完整的翻譯者、預覽、維護與 production 指南見
-[GitHub Pages](https://threemonth03.github.io/dsw-locale-tool/)；repo 內原始文件位於
-[docs](docs/index.md)。
+See the [CLI reference](docs/commands.md) for every command.

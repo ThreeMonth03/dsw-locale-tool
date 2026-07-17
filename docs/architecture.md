@@ -1,57 +1,46 @@
-# 架構
+# Repository design
 
-## 兩個 repo
+The workflow uses two repositories with one responsibility each.
 
-`dsw-ui-locales-zh_Hant` 面向翻譯者，保存設定、詞彙表與少量本地差異；
-`dsw-locale-tool` 面向維護者與 CI，負責可重現的建置。
-
-一個版本 branch 的內容分為三層：
-
-| 層 | 來源 | 人工修改 |
+| Repository | Contents | Primary users |
 | --- | --- | --- |
-| `upstream/` | 官方 `ds-wizard/wizard-locales` | 禁止 |
-| `overrides/` | 官方 POT 已有，但需本地補譯或覆蓋 | 可以 |
-| `extras/` | UI 可重現，但官方 POT 沒有 | 可以 |
+| `dsw-ui-locales-zh_Hant` | Markdown translation forms, glossary, and official baseline | Translators |
+| `dsw-locale-tool` | Validation, packaging, preview, and deployment automation | Maintainers and CI |
 
-合併順序為 `upstream < overrides < extras`。打包時另外從
-`translation-config.yml` 產生 `locale.json`，因此不會沿用上游 branch 內過期的版本欄位。
-`upstream/upstream.lock.yml` 記錄同步時的完整 commit SHA；build、preview 與 publish
-都驗證此 lock 並使用已 commit 的 baseline，不在建置途中重新抓取可變內容。
-所有維護版本的 E2E preview 與 installer publisher matrix 都直接由同一份
-`translation-config.yml` 產生；workflow 不保存第二份 DSW 版本清單。
+## Translation branch contents
 
-## 為什麼保留 extras
+Every `sync/vX.Y` branch contains:
 
-Weblate 只能翻譯已進入 POT 的 msgid。若 UI 執行時使用了 POT 沒收錄的英文，單純比較
-Weblate 完成率無法發現它；這些字串先由 Issue／runtime preview 證明，再以 `extras`
-提供翻譯。每次同步後 audit 都會確認它是否已被上游收錄，避免 workaround 永久累積。
+| Path | Purpose | Human-edited |
+| --- | --- | --- |
+| `upstream/` | Exact POT, PO, and metadata from official `wizard-locales` | No |
+| `translations/` | One Markdown form for every official gap and local runtime-only string | Translation block only |
+| `translation-config.yml` | Locale and DSW release metadata | Maintainers only |
+| `glossary/` | Preferred Traditional Chinese terminology | Yes |
 
-Runtime preview 從可見 DOM text、placeholder、label 與 title 擷取英文，再和同一
-version branch 的 POT 與有效 locale 比對。KM 與 user content 來自明確的 JSON／API
-值，不用「略過 questionnaire 整區」來壓低誤報。
+PO files are build artifacts, not translation sources. The builder starts from the official PO and
+applies completed Markdown forms in memory. Empty forms remain visible as work without changing the
+package.
 
-## 為什麼不是換掉 wizard-client image
+When official Weblate supplies the same translation, synchronization removes the local form. When
+an already translated source changes or disappears, synchronization stops for review instead of
+copying the translation to a different source.
 
-DSW 瀏覽器端會向 server 取得目前 locale 的內容；locale 是匯入 server 後保存的應用資料，
-不是把 PO 檔複製進靜態前端 image 就會生效。因此 production 的發布單位是 locale ZIP，
-installer image 只是負責把 ZIP 經由 API 匯入、啟用並設為預設語系。
+## Runtime-only UI text
+
+Browser preview can find English UI text that is absent from the official POT. A confirmed string
+uses the same Markdown form with a `runtime-only` identity. Synchronization converts it to a normal
+form when the source later appears upstream.
+
+## Installation model
+
+DSW serves locale content from the server. The production artifact is therefore a locale ZIP, and
+the installer image imports that ZIP through the DSW API. Official `wizard-client` and
+`wizard-server` images remain unchanged.
 
 ```text
-wizard-client ── /locales/current/content ──> wizard-server ──> locale storage
-                                              ^
-                                              |
-                                      one-shot installer
+browser -> wizard-client -> wizard-server -> installed locale
+                                      ^
+                                      |
+                              one-shot installer
 ```
-
-這讓官方 `wizard-client` 與 `wizard-server` 仍可使用相同 DSW tag，也不需要維護 frontend
-fork。只有證明某段文字完全不經 locale API 時，才另開 frontend patch；不把例外塞進本流程。
-
-## 信任邊界
-
-- Preview 使用一次性 database、MinIO 與 DSW demo 帳號，只綁定 runner 的 localhost。
-- Production installer 優先使用專用部署帳號的 DSW API key，不帶瀏覽器或 database 權限。
-- 翻譯 repo 不執行 contributor 提交的程式碼；自動化集中在 tool repo。
-- 只有 tool repo 的 reusable maintenance workflow 使用 translation repo 授予的 write
-  token；translation repo 只保留排程、權限與 workflow reference。
-- 同步只做普通 fast-forward push；排程期間若有人同時更新 branch，push 會失敗並
-  留下報告，不 force-push 或覆寫人工變更。

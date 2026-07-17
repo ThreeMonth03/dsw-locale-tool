@@ -1,0 +1,119 @@
+"""Markdown translation-tree tests."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+import pytest
+
+from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.translation_tree import (
+    TranslationUnit,
+    add_runtime_translation,
+    load_translation_tree,
+    parse_translation_unit,
+    refresh_translation_tree,
+    render_translation_unit,
+    unit_relative_path,
+)
+from tests.conftest import make_catalog, make_translation_tree
+
+
+def test_translation_unit_round_trip_preserves_multiline_source_and_fences(tmp_path):
+    unit = TranslationUnit(
+        component="wizard",
+        kind="message",
+        msgid="Use ~~~ here\nand keep this newline\n",
+        msgid_plural="Use ~~~~ in plurals",
+        msgctxt="toolbar",
+        translation="使用 ~~ 符號",
+    )
+    path = tmp_path / unit_relative_path(unit)
+    path.parent.mkdir(parents=True)
+    path.write_text(render_translation_unit(unit), encoding="utf-8")
+
+    assert parse_translation_unit(path, tmp_path) == unit
+    assert "~~~~~text" in path.read_text(encoding="utf-8")
+
+
+def test_translation_unit_rejects_source_edits(tmp_path):
+    unit = TranslationUnit(component="wizard", kind="message", msgid="Save")
+    path = tmp_path / unit_relative_path(unit)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        render_translation_unit(unit).replace("\nSave\n", "\nSave now\n"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LocaleToolError, match="source or identity was modified"):
+        parse_translation_unit(path, tmp_path)
+
+
+def test_refresh_scaffolds_only_official_gaps(tmp_path):
+    make_translation_tree(tmp_path)
+
+    result = refresh_translation_tree(tmp_path)
+    units = load_translation_tree(tmp_path)
+
+    assert result == {"units": 3, "completed": 2, "blank": 1, "runtime_only": 1}
+    assert ("wizard", None, "Hello") not in units
+    assert units[("wizard", None, "Still missing")].translation == ""
+    assert "Runtime only" in (tmp_path / "translations" / "README.md").read_text(encoding="utf-8")
+
+
+def test_refresh_removes_translation_once_upstream_matches(tmp_path):
+    make_translation_tree(tmp_path)
+    wizard_path = tmp_path / "upstream" / "wizard.po"
+    make_catalog(
+        wizard_path,
+        [
+            {"msgid": "Hello", "msgstr": "您好"},
+            {"msgid": "Count: %s", "msgstr": "數量"},
+            {"msgid": "Still missing", "msgstr": ""},
+        ],
+    )
+
+    refresh_translation_tree(tmp_path)
+
+    assert ("wizard", None, "Count: %s") not in load_translation_tree(tmp_path)
+
+
+def test_refresh_refuses_to_discard_translation_removed_upstream(tmp_path):
+    make_translation_tree(tmp_path)
+    make_catalog(
+        tmp_path / "upstream" / "wizard.pot",
+        [
+            {"msgid": "Hello", "msgstr": ""},
+            {"msgid": "Still missing", "msgstr": ""},
+        ],
+    )
+
+    with pytest.raises(LocaleToolError, match="no longer exists upstream"):
+        refresh_translation_tree(tmp_path)
+
+
+def test_translation_edit_does_not_change_unit_path():
+    unit = TranslationUnit(component="mail", kind="message", msgid="Reset password")
+
+    assert unit_relative_path(unit) == unit_relative_path(replace(unit, translation="重設密碼"))
+
+
+def test_add_runtime_translation_writes_form_and_index(tmp_path):
+    make_translation_tree(tmp_path)
+
+    path = add_runtime_translation(tmp_path, "wizard", "Another runtime label", "另一個標籤")
+
+    unit = load_translation_tree(tmp_path)[("wizard", None, "Another runtime label")]
+    assert unit.kind == "runtime"
+    assert unit.translation == "另一個標籤"
+    assert path.is_file()
+    assert "Another runtime label" in (tmp_path / "translations" / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_add_runtime_translation_rejects_official_source(tmp_path):
+    make_translation_tree(tmp_path)
+
+    with pytest.raises(LocaleToolError, match="already exists in upstream POT"):
+        add_runtime_translation(tmp_path, "wizard", "Hello", "您好")

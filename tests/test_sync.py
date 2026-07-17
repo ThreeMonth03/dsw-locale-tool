@@ -36,8 +36,8 @@ def test_sync_copies_only_managed_baseline(tmp_path):
     _git(upstream, "commit", "-m", "fixture")
 
     output = tmp_path / "translation"
-    (output / "overrides").mkdir(parents=True)
-    local_file = output / "overrides" / "wizard.po"
+    (output / "translations" / "wizard").mkdir(parents=True)
+    local_file = output / "translations" / "wizard" / "local.translation.md"
     local_file.write_text("local content\n", encoding="utf-8")
 
     lock = sync_upstream(make_config(str(upstream)), "v4.32", output)

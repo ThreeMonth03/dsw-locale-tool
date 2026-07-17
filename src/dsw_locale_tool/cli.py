@@ -20,6 +20,7 @@ from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
+from dsw_locale_tool.translation_tree import add_runtime_translation, refresh_translation_tree
 from dsw_locale_tool.versions import (
     available_git_branches,
     build_version_report,
@@ -32,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Construct the CLI argument parser."""
     parser = argparse.ArgumentParser(
         prog="dsw-locale",
-        description="Maintain local overlays on official DSW UI locales.",
+        description="Maintain Markdown translations on official DSW UI locales.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -87,8 +88,22 @@ def build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--version", required=True)
     sync_parser.add_argument("--output", type=Path, default=Path.cwd())
 
+    refresh_parser = subparsers.add_parser(
+        "refresh-tree", help="Regenerate Markdown forms for official translation gaps"
+    )
+    refresh_parser.add_argument("--root", type=Path, default=Path.cwd())
+
+    runtime_parser = subparsers.add_parser(
+        "add-runtime", help="Add one confirmed UI source that is absent from the official POT"
+    )
+    runtime_parser.add_argument("--root", type=Path, default=Path.cwd())
+    runtime_parser.add_argument("--component", choices=("wizard", "mail"), default="wizard")
+    runtime_parser.add_argument("--source", required=True)
+    runtime_parser.add_argument("--translation", default="")
+    runtime_parser.add_argument("--context")
+
     audit_parser = subparsers.add_parser(
-        "audit", help="Report missing translations and overlay maintenance work"
+        "audit", help="Report missing translations and translation-tree health"
     )
     audit_parser.add_argument("--root", type=Path, default=Path.cwd())
     audit_parser.add_argument("--report-dir", type=Path, default=Path("reports"))
@@ -101,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     build_parser_ = subparsers.add_parser(
-        "build-source", help="Merge locale layers into a packager-ready directory"
+        "build-source", help="Build a packager-ready locale from Markdown translations"
     )
     build_parser_.add_argument("--config", type=Path, required=True)
     build_parser_.add_argument("--version", required=True)
@@ -275,6 +290,22 @@ def run(arguments: argparse.Namespace) -> int:
             arguments.output,
         )
         print(json.dumps(lock, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "refresh-tree":
+        print(json.dumps(refresh_translation_tree(arguments.root), ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "add-runtime":
+        print(
+            add_runtime_translation(
+                arguments.root,
+                arguments.component,
+                arguments.source,
+                arguments.translation,
+                msgctxt=arguments.context,
+            )
+        )
         return 0
 
     if arguments.command == "audit":

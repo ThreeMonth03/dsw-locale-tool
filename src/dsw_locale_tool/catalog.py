@@ -1,8 +1,7 @@
-"""PO catalog inspection and overlay merging."""
+"""PO catalog inspection shared by synchronization, audits, and builds."""
 
 from __future__ import annotations
 
-import copy
 import re
 from collections import Counter
 from pathlib import Path
@@ -23,12 +22,10 @@ DOLLAR_PLACEHOLDER = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_.:-]*\}")
 MALFORMED_TRANSLATOR_COMMENT = re.compile(r"^#(?=[^\s.,:|~])", re.MULTILINE)
 
 
-def load_catalog(path: Path, *, required: bool = True) -> polib.POFile:
-    """Load a PO/POT file, optionally returning an empty catalog when absent."""
+def load_catalog(path: Path) -> polib.POFile:
+    """Load a required PO or POT catalog."""
     if not path.is_file():
-        if required:
-            raise LocaleToolError(f"Required catalog does not exist: {path}")
-        return polib.POFile()
+        raise LocaleToolError(f"Required catalog does not exist: {path}")
     try:
         content = path.read_text(encoding="utf-8")
         # DSW's v4.32 mail.pot starts with ``#Comment``. GNU gettext accepts it,
@@ -116,30 +113,3 @@ def placeholder_mismatches(entry: polib.POEntry) -> list[dict[str, object]]:
                 }
             )
     return issues
-
-
-def merge_catalogs(
-    baseline_path: Path,
-    override_path: Path,
-    extras_path: Path,
-) -> polib.POFile:
-    """Merge baseline, overrides, and local-only extras with local content winning."""
-    result = copy.deepcopy(load_catalog(baseline_path))
-    index = catalog_index(result)
-
-    for overlay_path in (override_path, extras_path):
-        overlay = load_catalog(overlay_path, required=False)
-        for entry in overlay:
-            if entry.obsolete or not entry.msgid:
-                continue
-            replacement = copy.deepcopy(entry)
-            key = entry_key(replacement)
-            existing = index.get(key)
-            if existing is None:
-                result.append(replacement)
-            else:
-                position = result.index(existing)
-                result[position] = replacement
-            index[key] = replacement
-
-    return result

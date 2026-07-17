@@ -12,7 +12,7 @@ from dsw_locale_tool.errors import LocaleToolError
 from tests.conftest import make_config, make_translation_tree
 
 
-def test_build_source_merges_layers_and_rewrites_metadata(tmp_path):
+def test_build_source_applies_markdown_translations_and_rewrites_metadata(tmp_path):
     repository = tmp_path / "repository"
     make_translation_tree(repository)
     (repository / "locale").mkdir()
