@@ -24,16 +24,27 @@ DSW image tag 與 branch 的 minor line 應一致。
 無論畫面擷取成功或失敗，workflow 都會盡量上傳：
 
 - `preview-artifact/*.png`：真實瀏覽器畫面。
+- `preview-artifact/runtime.md` 與 `runtime.json`：瀏覽器實際看到的英文、DOM
+  selector、route 與字串分類。
 - `preview-artifact/docker-compose.log`：失敗診斷資訊。
 - `reports/audit.md` 與 `audit.json`：漏翻與分層報告。
 - `dist/locale.zip`：同一次測試使用的可匯入 package。
 
-預設測試 KM 的題目可能是英文，這不代表 UI locale 失效。判斷 questionnaire 時要看
-按鈕、狀態、選單及系統訊息；若要同時展示中文問卷內容，把 `knowledge_model_url` 換成
-已翻譯 KM 的固定 commit raw URL。
+Runtime report 將英文分成：
+
+- `runtime_not_in_pot`：畫面可見，但官方 wizard POT 沒有；這是 `extras` 的候選。
+- `official_missing`：POT 已有，但有效 locale 仍缺譯或 fuzzy。
+- `unexpected_source`：有效 locale 已有譯文，畫面卻仍渲染英文，通常要查字串
+  context 或 frontend 取用路徑。
+- `allowed_content`：KM、project 名稱、使用者名稱、locale metadata 或產品專名。
+
+Workflow 把本次 KM JSON 的所有字串當作 content，不用整頁 selector 排除
+questionnaire，因此問卷區內的按鈕與系統訊息仍會被檢查。這個報告只證明本次有實際
+瀏覽的 routes，不宣稱覆蓋整個 DSW UI。
 
 ## 本機重現（維護者）
 
 一般翻譯者不需要執行本段。維護者若要診斷 CI，可參考 `preview/README.md` 生成暫時設定，
-再依序執行 `install-dsw`、`seed-project` 與 `capture-preview`。此 stack 使用公開 demo 密碼，
+再依序執行 `install-dsw`、`seed-project` 與 `capture-preview`。`capture-preview` 必須提供
+`--locale-root`；若匯入 KM，同時以 `--allowed-content-json` 提供該 JSON。此 stack 使用公開 demo 密碼，
 不得暴露至共享網路或沿用到 production。

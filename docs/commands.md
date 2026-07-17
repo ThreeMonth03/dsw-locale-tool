@@ -115,5 +115,16 @@ dsw-locale install-dsw \
 ```
 
 未提供 API key 時，CLI 會改用 `--email`／`--password` 或相對應環境變數登入。CI preview
-另使用 `seed-project` 匯入測試 KM，並以 `capture-preview` 擷取畫面；一般翻譯者不需直接
-執行這些指令。
+另使用 `seed-project` 匯入測試 KM，並以下列方式擷取畫面與 runtime 英文：
+
+```console
+dsw-locale capture-preview \
+  --output preview-artifact \
+  --locale-root ../dsw-ui-locales-zh_Hant \
+  --project-uuid "$PROJECT_UUID" \
+  --allowed-content-json build/preview.km \
+  --allow-text "Locale Preview"
+```
+
+`--allowed-content-json` 可重複使用，只排除 JSON 內的字串值；不排除整個 DOM 區域。
+一般翻譯者不需直接執行這些指令。

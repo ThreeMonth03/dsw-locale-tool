@@ -24,6 +24,10 @@ Weblate 只能翻譯已進入 POT 的 msgid。若 UI 執行時使用了 POT 沒�
 Weblate 完成率無法發現它；這些字串先由 Issue／runtime preview 證明，再以 `extras`
 提供翻譯。每次同步後 audit 都會確認它是否已被上游收錄，避免 workaround 永久累積。
 
+Runtime preview 從可見 DOM text、placeholder、label 與 title 擷取英文，再和同一
+version branch 的 POT 與有效 locale 比對。KM 與 user content 來自明確的 JSON／API
+值，不用「略過 questionnaire 整區」來壓低誤報。
+
 ## 為什麼不是換掉 wizard-client image
 
 DSW 瀏覽器端會向 server 取得目前 locale 的內容；locale 是匯入 server 後保存的應用資料，
