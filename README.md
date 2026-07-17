@@ -24,5 +24,6 @@ dsw-locale audit --root . --report-dir reports
 dsw-locale build-source --config translation-config.yml --version v4.32 --root . --output build/locale
 ```
 
-完整流程與 branch 規則見 [文件](docs/index.md)。
-
+完整的翻譯者、預覽、維護與 production 指南見
+[GitHub Pages](https://threemonth03.github.io/dsw-locale-tool/)；repo 內原始文件位於
+[docs](docs/index.md)。

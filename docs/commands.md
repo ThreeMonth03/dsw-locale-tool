@@ -50,3 +50,26 @@ dsw-locale package \
 
 `package` 固定使用 `@ds-wizard/locale-packager@0.3.0`，避免開發機與 CI 產物不同。
 
+## preview-config、install-dsw 與 preview
+
+產生只供一次性 Compose 使用的 DSW 設定：
+
+```console
+dsw-locale preview-config \
+  --output preview/runtime/application.yml \
+  --client-url http://localhost:8080/wizard
+```
+
+將 package 匯入 DSW。Production 建議使用 API key file：
+
+```console
+dsw-locale install-dsw \
+  --bundle dist/locale.zip \
+  --api-url http://wizard-server:3000/wizard-api \
+  --api-key-file /run/secrets/dsw_locale_api_key \
+  --default-locale
+```
+
+未提供 API key 時，CLI 會改用 `--email`／`--password` 或相對應環境變數登入。CI preview
+另使用 `seed-project` 匯入測試 KM，並以 `capture-preview` 擷取畫面；一般翻譯者不需直接
+執行這些指令。

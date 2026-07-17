@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -12,7 +13,9 @@ from pydantic import ValidationError
 from dsw_locale_tool.audit import audit_repository, failing_categories, write_reports
 from dsw_locale_tool.build import build_source, package_source
 from dsw_locale_tool.config import load_config
+from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.sync import sync_upstream
 
 
@@ -63,7 +66,66 @@ def build_parser() -> argparse.ArgumentParser:
     )
     package_parser.add_argument("--source", type=Path, required=True)
     package_parser.add_argument("--output", type=Path, required=True)
+
+    preview_config_parser = subparsers.add_parser(
+        "preview-config", help="Generate ephemeral secrets and DSW preview configuration"
+    )
+    preview_config_parser.add_argument("--output", type=Path, required=True)
+    preview_config_parser.add_argument(
+        "--client-url",
+        default=os.getenv("DSW_CLIENT_URL", "http://localhost:8080/wizard"),
+    )
+
+    install_parser = subparsers.add_parser(
+        "install-dsw", help="Import and enable a locale bundle in a running DSW"
+    )
+    install_parser.add_argument("--bundle", type=Path, required=True)
+    install_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
+    install_parser.add_argument("--api-key", default=os.getenv("DSW_API_KEY"))
+    install_parser.add_argument(
+        "--api-key-file",
+        type=Path,
+        default=Path(value) if (value := os.getenv("DSW_API_KEY_FILE")) else None,
+    )
+    install_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    install_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+    install_parser.add_argument("--default-locale", action="store_true")
+    install_parser.add_argument("--wait-timeout", type=float, default=300)
+
+    seed_parser = subparsers.add_parser(
+        "seed-project", help="Import a Knowledge Model and create a preview project"
+    )
+    seed_parser.add_argument("--knowledge-model", type=Path, required=True)
+    seed_parser.add_argument("--project-name", default="Locale Preview")
+    seed_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
+    seed_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    seed_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+
+    capture_parser = subparsers.add_parser(
+        "capture-preview", help="Capture translated DSW pages with Playwright"
+    )
+    capture_parser.add_argument(
+        "--client-url",
+        default=os.getenv("DSW_CLIENT_URL", "http://localhost:8080/wizard"),
+    )
+    capture_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
+    capture_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    capture_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+    capture_parser.add_argument("--output", type=Path, required=True)
+    capture_parser.add_argument("--project-uuid")
     return parser
+
+
+def _required(value: str | None, environment_name: str) -> str:
+    if not value:
+        raise LocaleToolError(f"Missing required option or {environment_name} environment variable")
+    return value
 
 
 def run(arguments: argparse.Namespace) -> int:
@@ -114,6 +176,58 @@ def run(arguments: argparse.Namespace) -> int:
 
     if arguments.command == "package":
         print(package_source(arguments.source, arguments.output))
+        return 0
+
+    if arguments.command == "preview-config":
+        print(generate_preview_config(arguments.output, client_url=arguments.client_url))
+        return 0
+
+    if arguments.command == "install-dsw":
+        api = DswApi(_required(arguments.api_url, "DSW_API_URL"))
+        api.wait_until_ready(wait_timeout=arguments.wait_timeout)
+        api_key = arguments.api_key
+        if not api_key and arguments.api_key_file:
+            try:
+                api_key = arguments.api_key_file.read_text(encoding="utf-8")
+            except OSError as error:
+                raise LocaleToolError(
+                    f"Unable to read DSW API key file {arguments.api_key_file}: {error}"
+                ) from error
+        if api_key:
+            api.use_api_key(api_key)
+        else:
+            api.login(
+                _required(arguments.email, "DSW_ADMIN_EMAIL"),
+                _required(arguments.password, "DSW_ADMIN_PASSWORD"),
+            )
+        result = api.install_locale(arguments.bundle, default_locale=arguments.default_locale)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "seed-project":
+        api = DswApi(_required(arguments.api_url, "DSW_API_URL"))
+        api.login(
+            _required(arguments.email, "DSW_ADMIN_EMAIL"),
+            _required(arguments.password, "DSW_ADMIN_PASSWORD"),
+        )
+        print(
+            api.seed_project(
+                arguments.knowledge_model,
+                project_name=arguments.project_name,
+            )
+        )
+        return 0
+
+    if arguments.command == "capture-preview":
+        result = capture_preview(
+            client_url=arguments.client_url,
+            api_url=_required(arguments.api_url, "DSW_API_URL"),
+            email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
+            password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
+            output=arguments.output,
+            project_uuid=arguments.project_uuid,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
     raise LocaleToolError(f"Unsupported command: {arguments.command}")

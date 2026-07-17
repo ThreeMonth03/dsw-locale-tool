@@ -12,6 +12,7 @@ project = "DSW Locale Tool"
 copyright = "2026, depositar contributors"
 author = "depositar contributors"
 release = "0.1.0"
+language = "zh_TW"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -24,6 +25,12 @@ source_suffix = {".md": "markdown", ".rst": "restructuredtext"}
 master_doc = "index"
 exclude_patterns = ["_build"]
 html_theme = "furo"
+html_title = "DSW UI 繁體中文補翻指南"
+html_theme_options = {
+    "source_repository": "https://github.com/ThreeMonth03/dsw-locale-tool/",
+    "source_branch": "main",
+    "source_directory": "docs/",
+}
 
 autodoc_default_options = {
     "members": True,

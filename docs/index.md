@@ -1,20 +1,44 @@
-# DSW Locale Tool
+# DSW UI 繁體中文補翻指南
 
-這套工具把 DSW 官方 Weblate 翻譯與 depositar 的 UI 補翻分層管理，目標是讓翻譯者
-只需回報與確認畫面，維護者能重複產生可匯入 DSW 的 locale package。
+這套流程把 DSW 官方 Weblate 翻譯與 depositar 的 UI 補翻分層管理。翻譯者不需要碰
+Python、Docker 或 GitHub Actions：只要回報英文原文、畫面位置與建議譯文；維護者再由
+CI 產生可檢查的真實 DSW 畫面與可部署的 locale installer。
+
+:::{admonition} 我應該從哪裡開始？
+:class: tip
+
+- **發現英文或翻譯不自然**：閱讀 {doc}`translators`。
+- **想看翻譯套進 DSW 的結果**：閱讀 {doc}`preview`。
+- **負責同步、分類或發版**：閱讀 {doc}`maintainers`。
+- **負責 production Compose**：閱讀 {doc}`production`。
+:::
 
 ```{toctree}
 :maxdepth: 2
+:hidden:
 
 architecture
-workflow
+translators
+preview
+maintainers
+production
 commands
 ```
 
-## 設計界線
+## 最短流程
 
-- 官方 `wizard-locales` 是 baseline，不直接修改。
-- 翻譯 repo 是內容 repo，不包含 Python、Docker 或瀏覽器測試程式碼。
-- tool repo 擁有所有同步、檢查、打包與 preview automation。
-- 每個 DSW minor version 使用獨立 branch，避免來源字串跨版污染。
+1. 翻譯者在內容 repo 建立 Issue，不需修改任何程式碼。
+2. 維護者把譯文放進對應版本的 `overrides/` 或 `extras/`。
+3. Preview workflow 啟動一次性的 DSW，匯入語系並上傳畫面 artifact。
+4. 確認後發佈 installer image；production 只需更新 image tag。
 
+## Repo 分工
+
+- [dsw-ui-locales-zh_Hant](https://github.com/ThreeMonth03/dsw-ui-locales-zh_Hant)：
+  面向翻譯者的內容 repo；Issue、詞彙表與各版補翻都在這裡。
+- [dsw-locale-tool](https://github.com/ThreeMonth03/dsw-locale-tool)：
+  面向維護者的工具 repo；同步、audit、打包、preview 與 installer 都在這裡。
+- 官方 `ds-wizard/wizard-locales`：唯讀 baseline，既有 Weblate 翻譯會持續同步。
+
+每個 DSW minor version 使用獨立 branch，避免來源字串跨版本污染。這是 workaround，
+不是 Weblate 的替代品；適合所有 DSW 使用者的修正仍應回饋官方。

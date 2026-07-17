@@ -1,0 +1,163 @@
+name: Render DSW locale preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      translation_repository:
+        description: Translation content repository
+        required: true
+        default: ThreeMonth03/dsw-ui-locales-zh_Hant
+      translation_ref:
+        description: Version branch, tag, or commit
+        required: true
+        default: sync/v4.32
+      config_version:
+        description: Key in translation-config.yml
+        required: true
+        default: v4.32
+      dsw_image_tag:
+        description: Official wizard-server and wizard-client image tag
+        required: true
+        default: "4.32"
+      knowledge_model_url:
+        description: Optional KM JSON URL used to create a real questionnaire
+        required: false
+        default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/basic-questionnaire-test-km.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: locale-preview-${{ inputs.translation_repository }}-${{ inputs.translation_ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DSW_VERSION: ${{ inputs.dsw_image_tag }}
+      DSW_API_URL: http://localhost:3000/wizard-api
+      DSW_CLIENT_URL: http://localhost:8080/wizard
+      DSW_ADMIN_EMAIL: albert.einstein@example.com
+      DSW_ADMIN_PASSWORD: password
+    steps:
+      - name: Check out tool
+        uses: actions/checkout@v6
+        with:
+          path: tool
+
+      - name: Check out translation content
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.translation_ref }}
+          path: locale
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+
+      - name: Install tool and Chromium
+        run: |
+          python -m pip install './tool[preview]'
+          python -m playwright install --with-deps chromium
+
+      - name: Build locale package
+        run: |
+          dsw-locale validate-config locale/translation-config.yml
+          dsw-locale sync-upstream \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.config_version }}" \
+            --output locale
+          dsw-locale audit \
+            --root locale \
+            --report-dir reports \
+            --fail-on placeholders \
+            --fail-on structure
+          dsw-locale build-source \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.config_version }}" \
+            --root locale \
+            --output build/locale
+          dsw-locale package \
+            --source build/locale \
+            --output dist/locale.zip
+
+      - name: Start disposable DSW
+        run: |
+          dsw-locale preview-config \
+            --output tool/preview/runtime/application.yml \
+            --client-url "$DSW_CLIENT_URL"
+          docker compose \
+            --project-name dsw-locale-preview \
+            --file tool/preview/docker-compose.yml \
+            up --detach
+
+      - name: Install locale as default
+        run: |
+          dsw-locale install-dsw \
+            --bundle dist/locale.zip \
+            --default-locale
+
+      - name: Download preview Knowledge Model
+        if: inputs.knowledge_model_url != ''
+        run: curl --fail --location "${{ inputs.knowledge_model_url }}" --output build/preview.km
+
+      - name: Create questionnaire
+        id: questionnaire
+        if: inputs.knowledge_model_url != ''
+        run: |
+          project_uuid=$(dsw-locale seed-project \
+            --knowledge-model build/preview.km \
+            --project-name "Locale Preview")
+          echo "project_uuid=$project_uuid" >> "$GITHUB_OUTPUT"
+
+      - name: Capture translated pages
+        env:
+          PROJECT_UUID: ${{ steps.questionnaire.outputs.project_uuid }}
+        run: |
+          arguments=(
+            capture-preview
+            --output preview-artifact
+          )
+          if [ -n "$PROJECT_UUID" ]; then
+            arguments+=(--project-uuid "$PROJECT_UUID")
+          fi
+          dsw-locale "${arguments[@]}"
+
+      - name: Collect container logs
+        if: always()
+        run: |
+          mkdir -p preview-artifact
+          docker compose \
+            --project-name dsw-locale-preview \
+            --file tool/preview/docker-compose.yml \
+            logs --no-color > preview-artifact/docker-compose.log
+
+      - name: Upload preview, audit, and locale package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsw-locale-preview-${{ inputs.config_version }}
+          if-no-files-found: warn
+          path: |
+            preview-artifact/
+            reports/
+            dist/locale.zip
+
+      - name: Stop disposable DSW
+        if: always()
+        run: |
+          docker compose \
+            --project-name dsw-locale-preview \
+            --file tool/preview/docker-compose.yml \
+            down --volumes --remove-orphans

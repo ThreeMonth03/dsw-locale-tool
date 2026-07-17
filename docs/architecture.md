@@ -22,3 +22,24 @@ Weblate 只能翻譯已進入 POT 的 msgid。若 UI 執行時使用了 POT 沒�
 Weblate 完成率無法發現它；這些字串先由 Issue／runtime preview 證明，再以 `extras`
 提供翻譯。每次同步後 audit 都會確認它是否已被上游收錄，避免 workaround 永久累積。
 
+## 為什麼不是換掉 wizard-client image
+
+DSW 瀏覽器端會向 server 取得目前 locale 的內容；locale 是匯入 server 後保存的應用資料，
+不是把 PO 檔複製進靜態前端 image 就會生效。因此 production 的發布單位是 locale ZIP，
+installer image 只是負責把 ZIP 經由 API 匯入、啟用並設為預設語系。
+
+```text
+wizard-client ── /locales/current/content ──> wizard-server ──> locale storage
+                                              ^
+                                              |
+                                      one-shot installer
+```
+
+這讓官方 `wizard-client` 與 `wizard-server` 仍可使用相同 DSW tag，也不需要維護 frontend
+fork。只有證明某段文字完全不經 locale API 時，才另開 frontend patch；不把例外塞進本流程。
+
+## 信任邊界
+
+- Preview 使用一次性 database、MinIO 與 DSW demo 帳號，只綁定 runner 的 localhost。
+- Production installer 優先使用專用部署帳號的 DSW API key，不帶瀏覽器或 database 權限。
+- 翻譯 repo 不執行 contributor 提交的程式碼；自動化集中在 tool repo。
