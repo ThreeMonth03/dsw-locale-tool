@@ -24,3 +24,8 @@ def test_publisher_is_scheduled_and_never_overwrites_a_tag():
     assert "if: steps.tag.outputs.publish == 'true'" in release
     assert "tags: ${{ steps.image.outputs.reference }}" in release
     assert "org.opencontainers.image.revision=${{ steps.image.outputs.revision }}" in release
+    assert "load: true" in release
+    assert "Smoke test installer image" in release
+    assert ".created == true and .enabled == true and .defaultLocale == true" in release
+    assert ".created == false and .enabled == true and .defaultLocale == true" in release
+    assert 'run: docker push "$IMAGE_REFERENCE"' in release

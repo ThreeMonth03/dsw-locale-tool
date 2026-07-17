@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 import zipfile
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -100,7 +101,14 @@ class DswApi:
             f"DSW housekeeping did not finish within {wait_timeout:g} seconds: {last_state}"
         )
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        allowed_error_codes: Collection[str] = (),
+        **kwargs: Any,
+    ) -> requests.Response:
         headers = dict(kwargs.pop("headers", {}))
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -114,7 +122,13 @@ class DswApi:
             )
         except requests.RequestException as error:
             raise LocaleToolError(f"DSW API request failed: {method} {path}: {error}") from error
-        if not response.ok:
+        error_code = None
+        if not response.ok and allowed_error_codes:
+            try:
+                error_code = response.json().get("error", {}).get("code")
+            except (AttributeError, ValueError):
+                pass
+        if not response.ok and error_code not in allowed_error_codes:
             detail = response.text.strip().replace("\n", " ")[:500]
             raise LocaleToolError(
                 f"DSW API request failed: {method} {path}: HTTP {response.status_code}: {detail}"
@@ -151,7 +165,11 @@ class DswApi:
             "users_edit_tours",
         )
         for tour_id in tour_ids:
-            self._request("PUT", f"/users/current/tours/{tour_id}")
+            self._request(
+                "PUT",
+                f"/users/current/tours/{tour_id}",
+                allowed_error_codes={"error.database.unique_constraint_violation"},
+            )
 
     def find_locale(self, metadata: dict[str, Any]) -> dict[str, Any] | None:
         """Find the exact locale coordinate when an installer job is rerun."""

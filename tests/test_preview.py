@@ -9,6 +9,8 @@ import yaml
 
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.preview import (
+    _authenticated_routes,
+    _interactive_scenarios,
     _user_content,
     _wait_for_application,
     _wait_for_page_available,
@@ -110,3 +112,31 @@ def test_user_content_includes_display_name_parts():
         "Albert Einstein",
         "albert@example.test",
     }
+
+
+def test_project_preview_includes_static_and_interactive_states():
+    project_uuid = "project-uuid"
+
+    assert _authenticated_routes(project_uuid) == {
+        "dashboard": "/",
+        "projects": "/projects",
+        "locales": "/locales",
+        "questionnaire": "/projects/project-uuid",
+        "project-settings": "/projects/project-uuid/settings",
+    }
+    scenarios = _interactive_scenarios(project_uuid)
+    assert [scenario.name for scenario in scenarios] == [
+        "project-share-dialog",
+        "question-comment-panel",
+        "project-delete-dialog",
+    ]
+    assert all(scenario.ready for scenario in scenarios)
+
+
+def test_preview_without_project_uses_application_routes_only():
+    assert _authenticated_routes(None) == {
+        "dashboard": "/",
+        "projects": "/projects",
+        "locales": "/locales",
+    }
+    assert _interactive_scenarios(None) == ()
