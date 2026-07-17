@@ -1,0 +1,24 @@
+services:
+  locale-installer:
+    image: "${DSW_LOCALE_INSTALLER_IMAGE:-ghcr.io/threemonth03/dsw-locale-installer:4.32.0}"
+    platform: linux/amd64
+    profiles:
+      - locale-maintenance
+    restart: "no"
+    depends_on:
+      server:
+        condition: service_started
+    environment:
+      DSW_API_URL: http://server:3000/wizard-api
+      DSW_API_KEY_FILE: /run/secrets/dsw_locale_api_key
+    secrets:
+      - dsw_locale_api_key
+    networks:
+      - dsw_internal
+
+secrets:
+  dsw_locale_api_key:
+    file: "${DSW_LOCALE_API_KEY_SOURCE:-./secrets/dsw_locale_api_key}"
+
+networks:
+  dsw_internal:

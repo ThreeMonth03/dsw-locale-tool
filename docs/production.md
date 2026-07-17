@@ -4,23 +4,43 @@ Production 不需要 fork DSW frontend，也不需架設本地 Weblate。維持�
 `wizard-server`／`wizard-client` images，再加入一個執行完即退出的 locale installer
 service。之後每次發版只更新 installer 的 immutable image tag。
 
-## 一次性的 Compose 變更
+:::{warning}
+目前已發布的 `4.32.0` installer 只適用 DSW 4.32 release line。`depositar-prod` branch 的
+`example.env` 仍寫 `DSW_VERSION=4.29`；執行前必須檢查真正 production `.env`。若仍是
+4.29，應先升級 DSW，或另行建立相符的 `sync/v4.29` locale，不可直接匯入 4.32 package。
+:::
 
-以下 service 可加入既有 Compose；service 名稱與 server 內部連接埠請依實際檔案調整：
+## 建議：第三個 Compose override
+
+針對 `depositar/dsw-deployment` 的 `depositar-prod` branch，使用 repo 內可直接複製的
+[`docker-compose.locale.yml`](../examples/depositar-production/docker-compose.locale.yml)。它
+沿用既有 `server` service 與 `dsw_internal` network，不修改、fork 或取代原來兩份
+Compose。
+
+先把 API key 存成 deployment host 上的 `./secrets/dsw_locale_api_key`，並將 `/secrets/`
+加入 deployment repo 的 `.gitignore`。完整建立、權限、驗證與復原步驟見
+[`depositar production Compose integration`](https://github.com/ThreeMonth03/dsw-locale-tool/blob/main/examples/depositar-production/README.md)。
+
+等價的核心 service 如下：
 
 ```yaml
 services:
   locale-installer:
-    image: ghcr.io/threemonth03/dsw-locale-installer:4.32.0
+    image: "${DSW_LOCALE_INSTALLER_IMAGE:-ghcr.io/threemonth03/dsw-locale-installer:4.32.0}"
+    platform: linux/amd64
+    profiles:
+      - locale-maintenance
     restart: "no"
     depends_on:
-      wizard-server:
+      server:
         condition: service_started
     environment:
-      DSW_API_URL: http://wizard-server:3000/wizard-api
+      DSW_API_URL: http://server:3000/wizard-api
       DSW_API_KEY_FILE: /run/secrets/dsw_locale_api_key
     secrets:
       - dsw_locale_api_key
+    networks:
+      - dsw_internal
 
 secrets:
   dsw_locale_api_key:
@@ -35,12 +55,23 @@ key，才以 `DSW_ADMIN_EMAIL` 與 `DSW_ADMIN_PASSWORD` 作為過渡方案。
 ## 更新語系
 
 1. 發布新 `locale_version` 與同號 installer image，例如 `4.32.1`。
-2. 修改 Compose 中 `locale-installer.image` 的 tag。
-3. 拉取並執行一次：
+2. 修改 `.env` 的 `DSW_LOCALE_INSTALLER_IMAGE` tag。
+3. 以第三個 override 明確執行一次；routine `up -d` 不會因 profile 而啟動它：
 
    ```console
-   docker compose pull locale-installer
-   docker compose up locale-installer
+   docker compose \
+     --env-file .env \
+     --file docker-compose.yml \
+     --file docker-compose.prod.yml \
+     --file ../dsw-locale-tool/examples/depositar-production/docker-compose.locale.yml \
+     pull locale-installer
+
+   docker compose \
+     --env-file .env \
+     --file docker-compose.yml \
+     --file docker-compose.prod.yml \
+     --file ../dsw-locale-tool/examples/depositar-production/docker-compose.locale.yml \
+     run --rm --no-deps locale-installer
    ```
 
 Installer 會等待 server、尋找同一 `organizationId:localeId:version`、必要時匯入 ZIP，最後
