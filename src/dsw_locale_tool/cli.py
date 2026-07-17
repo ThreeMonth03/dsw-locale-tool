@@ -17,7 +17,8 @@ from dsw_locale_tool.config import load_config
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
-from dsw_locale_tool.sync import sync_upstream
+from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
+from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from dsw_locale_tool.versions import (
     available_git_branches,
     build_version_report,
@@ -57,6 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     versions_parser.add_argument("--report-dir", type=Path, default=Path("reports/versions"))
     versions_parser.add_argument("--fail-on-drift", action="store_true")
+
+    reconcile_parser = subparsers.add_parser(
+        "reconcile-versions",
+        help="Add ready Weblate versions and update configured lifecycle states",
+    )
+    reconcile_parser.add_argument("--config", type=Path, required=True)
+    reconcile_parser.add_argument("--report-dir", type=Path, default=Path("reports/maintenance"))
 
     sync_parser = subparsers.add_parser(
         "sync-upstream", help="Refresh the immutable official locale baseline"
@@ -199,6 +207,17 @@ def run(arguments: argparse.Namespace) -> int:
         if arguments.fail_on_drift and not report["aligned"]:
             print("Version alignment drift detected", file=sys.stderr)
             return 2
+        return 0
+
+    if arguments.command == "reconcile-versions":
+        config = load_config(arguments.config)
+        report = reconcile_version_config(
+            arguments.config,
+            fetch_weblate_versions(config),
+            fetch_upstream_branch_heads(config.upstream.repository),
+        )
+        json_path, markdown_path = write_reconcile_report(report, arguments.report_dir)
+        print(f"Wrote {json_path} and {markdown_path}")
         return 0
 
     if arguments.command == "sync-upstream":

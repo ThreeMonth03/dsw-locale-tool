@@ -111,6 +111,7 @@ def test_fetch_weblate_versions_falls_back_to_public_page_after_rate_limit():
 
     assert [item.version for item in versions] == ["v4.31", "v4.32"]
     assert [item.expected_state for item in versions] == ["maintenance", "active"]
+    assert versions[0].url == "https://localize.ds-wizard.org/projects/dsw-4-31/"
     assert [call[0] for call in session.calls] == [
         "https://localize.ds-wizard.org/api/projects/",
         "https://localize.ds-wizard.org/projects/",

@@ -45,3 +45,7 @@ fork。只有證明某段文字完全不經 locale API 時，才另開 frontend 
 - Preview 使用一次性 database、MinIO 與 DSW demo 帳號，只綁定 runner 的 localhost。
 - Production installer 優先使用專用部署帳號的 DSW API key，不帶瀏覽器或 database 權限。
 - 翻譯 repo 不執行 contributor 提交的程式碼；自動化集中在 tool repo。
+- 只有 tool repo 的 reusable maintenance workflow 使用 translation repo 授予的 write
+  token；translation repo 只保留排程、權限與 workflow reference。
+- 同步只做普通 fast-forward push；排程期間若有人同時更新 branch，push 會失敗並
+  留下報告，不 force-push 或覆寫人工變更。

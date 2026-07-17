@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 import requests
 
@@ -78,14 +79,14 @@ class WeblateProjectsParser(HTMLParser):
                     project=f"DSW {number}",
                     slug=self.row_slug,
                     locked=self.row_locked,
-                    url=f"{self.base_url}/projects/{self.row_slug}/",
+                    url=urljoin(f"{self.base_url}/", f"{self.row_slug}/"),
                 )
         self.in_row = False
         self.row_slug = None
         self.row_locked = False
 
 
-def _version_sort_key(version: str) -> tuple[int, int]:
+def version_sort_key(version: str) -> tuple[int, int]:
     major, minor = version.removeprefix("v").split(".", maxsplit=1)
     return int(major), int(minor)
 
@@ -144,7 +145,7 @@ def fetch_weblate_versions(
 
     if not versions:
         raise LocaleToolError("Weblate project catalog contains no DSW version projects")
-    return sorted(versions.values(), key=lambda item: _version_sort_key(item.version))
+    return sorted(versions.values(), key=lambda item: version_sort_key(item.version))
 
 
 def _weblate_request_error(error: requests.RequestException) -> LocaleToolError:
@@ -176,7 +177,7 @@ def fetch_public_weblate_versions(
     parser.close()
     if not parser.versions:
         raise LocaleToolError("Public Weblate project catalog contains no DSW version projects")
-    return sorted(parser.versions.values(), key=lambda item: _version_sort_key(item.version))
+    return sorted(parser.versions.values(), key=lambda item: version_sort_key(item.version))
 
 
 def available_git_branches(repository_root: str | Path) -> set[str]:
@@ -218,12 +219,12 @@ def build_version_report(
     """Compare Weblate, translation configuration, and optional Git branches."""
     official = {item.version: item for item in official_versions}
     configured = config.versions
-    missing_versions = sorted(set(official) - set(configured), key=_version_sort_key)
+    missing_versions = sorted(set(official) - set(configured), key=version_sort_key)
     state_mismatches: list[dict[str, str]] = []
     official_rows: list[dict[str, Any]] = []
     missing_branches: list[str] = []
 
-    for version_key in sorted(official, key=_version_sort_key):
+    for version_key in sorted(official, key=version_sort_key):
         item = official[version_key]
         branch = f"{config.branches.version_prefix}{version_key}"
         local = configured.get(version_key)
@@ -252,7 +253,7 @@ def build_version_report(
             }
         )
 
-    configured_only = sorted(set(configured) - set(official), key=_version_sort_key)
+    configured_only = sorted(set(configured) - set(official), key=version_sort_key)
     missing_from_weblate = [
         version for version in configured_only if configured[version].state != "retired"
     ]

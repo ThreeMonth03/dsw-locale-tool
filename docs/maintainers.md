@@ -17,9 +17,13 @@ GitHub Actions。驗證包含變更範圍、config、audit、build 與 package�
 6. 觸發 CI preview，請回報者確認 artifact 畫面。
 
 `upstream/` 永遠由 `sync-upstream` 產生，不接受人工修改。詞彙選擇先更新
-`glossary/terms.yml`，再調整翻譯，避免不同版本各自發明用語。
+`glossary/zh-Hant.csv`，再調整翻譯，避免不同版本各自發明用語。
 
 ## 同步 Weblate／官方 locale
+
+正常情況由 translation repo 的 `Maintain locale release lines` workflow 每日同步。
+它會自動處理新 Weblate minor line、lifecycle state 與已有 branch 的 baseline
+drift。以下指令供調查失敗或手動重現：
 
 ```console
 dsw-locale sync-upstream \
@@ -30,8 +34,9 @@ dsw-locale sync-upstream \
 dsw-locale audit --root . --report-dir reports
 ```
 
-同步產生的 `upstream/` 與 `upstream.lock.yml` 必須一起 review、commit。Preview、package
-及 publish 不會自行重新同步，避免同一個翻譯 commit 在不同時間使用不同 baseline。
+同步產生的 `upstream/` 與 `upstream.lock.yml` 必須同時進入一筆 commit。Preview、
+package 及 publish 只讀取該 committed baseline，避免同一個翻譯 commit 在不同
+時間使用不同來源。
 
 優先檢查：
 
@@ -45,6 +50,8 @@ dsw-locale audit --root . --report-dir reports
 - 維護版本以 Weblate projects 清單為準，不取決於目前 production 使用哪一版。
 - Weblate unlocked 對應 `active`；locked 對應 `maintenance`，兩者都維持可同步與可發版。
 - 一個 DSW minor line 對應一個 `sync/vX.Y` branch。
+- 新版本只在 Weblate project 與 `wizard-locales` branch 都存在後自動建立。
+- Weblate 不再列出的版本不自動刪除、archive 或改成 `retired`。
 - `upstream_ref` 鎖定相同 minor line；`upstream.lock.yml` 記錄實際 commit SHA。
 - 每個對外發布的 locale package 必須有新的 `locale_version`；相同 coordinate 的 installer
   會視為已安裝而略過重新匯入。

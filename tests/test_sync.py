@@ -6,7 +6,7 @@ import subprocess
 
 import yaml
 
-from dsw_locale_tool.sync import sync_upstream
+from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from tests.conftest import make_config
 
 
@@ -49,3 +49,21 @@ def test_sync_copies_only_managed_baseline(tmp_path):
     )
     assert lock_file["commit"] == lock["commit"]
     assert lock_file["version"] == "v4.32"
+
+
+def test_fetch_upstream_branch_heads_returns_only_minor_release_branches(tmp_path):
+    upstream = tmp_path / "wizard-locales"
+    upstream.mkdir()
+    _git(upstream, "init", "--initial-branch", "v4.32")
+    _git(upstream, "config", "user.name", "Test")
+    _git(upstream, "config", "user.email", "test@example.test")
+    (upstream / "README.md").write_text("fixture\n", encoding="utf-8")
+    _git(upstream, "add", ".")
+    _git(upstream, "commit", "-m", "fixture")
+    _git(upstream, "branch", "v4.33")
+    _git(upstream, "branch", "main")
+
+    branches = fetch_upstream_branch_heads(str(upstream))
+
+    assert sorted(branches) == ["v4.32", "v4.33"]
+    assert all(len(commit) == 40 for commit in branches.values())
