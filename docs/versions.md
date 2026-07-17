@@ -15,9 +15,9 @@ because a newer DSW version exists.
 The scheduled maintenance workflow discovers new Weblate versions, waits until the matching
 `wizard-locales` branch exists, adds the release metadata, creates its version branch, synchronizes
 the official baseline, and generates blank translation forms. Existing translations are never
-copied to a new release unless the source identity is an exact match and a maintainer explicitly
-chooses to do so.
+copied to a new release by similarity. Merge automation propagates only into existing blank forms
+with the same complete source identity.
 
-`locale_version` identifies an immutable locale package. Increase its patch version whenever the
-published translation content changes. `recommended_app_version` identifies the target DSW release
-and is independent from the locale patch version.
+`locale_version` identifies an immutable locale package. Merge automation advances its patch version
+whenever effective translation content changes. `recommended_app_version` identifies the target DSW
+release and is independent from the locale patch version.

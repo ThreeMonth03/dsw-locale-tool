@@ -98,6 +98,7 @@ jobs:
 
       - name: Audit locale
         run: |
+          dsw-locale refresh-tree --root locale
           dsw-locale audit \
             --root locale \
             --report-dir reports \

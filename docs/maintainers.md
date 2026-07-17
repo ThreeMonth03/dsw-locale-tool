@@ -31,7 +31,9 @@ Structure and placeholder findings must be resolved before packaging.
 Merging a translation pull request starts exact propagation for every other maintained release
 branch. CI fills a target only when the form already exists, is blank, and has the same component,
 source, plural source, context, and form kind. Each changed target is audited, built, and packaged
-before CI commits it. A concurrent branch update causes the push to fail instead of being overwritten.
+before CI commits it. The source and every changed target receive a new immutable locale patch
+version automatically. A concurrent branch update causes the push to fail instead of being
+overwritten.
 
 To inspect the same operation locally:
 
@@ -46,8 +48,9 @@ dsw-locale propagate \
 
 1. Confirm that the translation PR targets the correct `sync/vX.Y` branch.
 2. Review the audit and preview artifacts.
-3. Increase that branch's `locale_version` if the effective locale has changed.
-4. Run **Publish locale installer image** with the reviewed branch or commit.
+3. Merge the translation pull request; CI advances every affected `locale_version`.
+4. Run **Publish maintained locale installers** for immediate publication, or wait for its scheduled
+   run.
 
 The publisher creates an immutable GHCR image tag from `locale.json.version`. Existing tags are not
 overwritten.

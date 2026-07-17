@@ -68,6 +68,7 @@ jobs:
       - name: Build locale package
         run: |
           dsw-locale validate-config locale/translation-config.yml
+          dsw-locale refresh-tree --root locale
           dsw-locale audit \
             --root locale \
             --report-dir reports \

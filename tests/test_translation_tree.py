@@ -58,7 +58,11 @@ def test_refresh_scaffolds_only_official_gaps(tmp_path):
     assert result == {"units": 3, "completed": 2, "blank": 1, "runtime_only": 1}
     assert ("wizard", None, "Hello") not in units
     assert units[("wizard", None, "Still missing")].translation == ""
-    assert "Runtime only" in (tmp_path / "translations" / "README.md").read_text(encoding="utf-8")
+    index = (tmp_path / "translations" / "README.md").read_text(encoding="utf-8")
+    assert "### Open (1)" in index
+    assert "### Completed (2)" in index
+    assert index.index("Still missing") < index.index("Count: %s")
+    assert "Runtime only" in index
 
 
 def test_refresh_removes_translation_once_upstream_matches(tmp_path):
@@ -76,6 +80,17 @@ def test_refresh_removes_translation_once_upstream_matches(tmp_path):
     refresh_translation_tree(tmp_path)
 
     assert ("wizard", None, "Count: %s") not in load_translation_tree(tmp_path)
+
+
+def test_refresh_repairs_generated_index(tmp_path):
+    make_translation_tree(tmp_path)
+    index = tmp_path / "translations" / "README.md"
+    index.write_text("# Stale generated index\n", encoding="utf-8")
+
+    refresh_translation_tree(tmp_path)
+
+    assert "### Open (1)" in index.read_text(encoding="utf-8")
+    load_translation_tree(tmp_path)
 
 
 def test_refresh_refuses_to_discard_translation_removed_upstream(tmp_path):

@@ -9,6 +9,9 @@ on:
       source_ref:
         required: true
         type: string
+      base_sha:
+        required: true
+        type: string
       source_sha:
         required: true
         type: string
@@ -20,6 +23,86 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      translation_changed: ${{ steps.scope.outputs.translation_changed }}
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Check out trusted locale tool
+        uses: actions/checkout@v6
+        with:
+          repository: ThreeMonth03/dsw-locale-tool
+          ref: main
+          path: tool
+          persist-credentials: false
+
+      - name: Check out translation base
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.base_sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Check out merged translation tree
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.source_sha }}
+          path: source
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install trusted locale tool
+        run: python -m pip install ./tool
+
+      - name: Inspect merged translation change
+        id: scope
+        run: |
+          report=$(dsw-locale validate-pr \
+            --base-root base \
+            --head-root source \
+            --branch "${{ inputs.source_ref }}")
+          echo "$report"
+          echo "translation_changed=$(jq --raw-output '.translation_changed' \
+            <<< "$report")" >> "$GITHUB_OUTPUT"
+          echo "locale_version_bumped=$(jq --raw-output '.locale_version_bumped' \
+            <<< "$report")" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare source locale release
+        if: steps.scope.outputs.translation_changed == 'true'
+        env:
+          LOCALE_VERSION_BUMPED: ${{ steps.scope.outputs.locale_version_bumped }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_PULL_REQUEST: ${{ inputs.source_pull_request }}
+        run: |
+          version=${SOURCE_REF#sync/}
+          dsw-locale refresh-tree --root source
+          if [ "$LOCALE_VERSION_BUMPED" = false ]; then
+            dsw-locale bump-release \
+              --config source/translation-config.yml \
+              --version "$version"
+          fi
+          git -C source config user.name "github-actions[bot]"
+          git -C source config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C source add translation-config.yml translations/README.md
+          if git -C source diff --cached --quiet; then
+            exit 0
+          fi
+          git -C source commit \
+            -m "Advance ${version} locale release" \
+            -m "Source: $SOURCE_PULL_REQUEST"
+          git -C source push origin "HEAD:$SOURCE_REF"
+
+      - name: Resolve propagation source
+        id: source
+        run: echo "sha=$(git -C source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -62,7 +145,10 @@ jobs:
             <<< "$matrix")" >> "$GITHUB_OUTPUT"
 
   propagate:
-    needs: plan
+    needs:
+      - plan
+      - prepare
+    if: needs.prepare.outputs.translation_changed == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -80,7 +166,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ inputs.translation_repository }}
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
           path: source
           persist-credentials: false
 
@@ -126,6 +212,13 @@ jobs:
             --fail-on placeholders \
             --fail-on structure
 
+      - name: Advance target locale release
+        if: steps.propagation.outputs.applied != '0'
+        run: |
+          dsw-locale bump-release \
+            --config target/translation-config.yml \
+            --version "${{ matrix.config_version }}"
+
       - name: Build propagated target
         if: steps.propagation.outputs.applied != '0'
         run: |
@@ -142,7 +235,7 @@ jobs:
         if: steps.propagation.outputs.applied != '0'
         env:
           SOURCE_REF: ${{ inputs.source_ref }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SOURCE_PULL_REQUEST: ${{ inputs.source_pull_request }}
           TARGET_REF: ${{ matrix.translation_ref }}
           APPLIED: ${{ steps.propagation.outputs.applied }}
@@ -150,7 +243,7 @@ jobs:
           source_version=${SOURCE_REF#sync/}
           git -C target config user.name "github-actions[bot]"
           git -C target config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C target add translations
+          git -C target add translations translation-config.yml
           git -C target commit \
             -m "Propagate exact translations from ${source_version}" \
             -m "Applied: $APPLIED" \

@@ -20,6 +20,7 @@ from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
+from dsw_locale_tool.release import bump_locale_version
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from dsw_locale_tool.translation_tree import add_runtime_translation, refresh_translation_tree
 from dsw_locale_tool.versions import (
@@ -81,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     release_info_parser.add_argument("--config", type=Path, required=True)
     release_info_parser.add_argument("--version", required=True)
+
+    bump_release_parser = subparsers.add_parser(
+        "bump-release", help="Increase one immutable locale patch version"
+    )
+    bump_release_parser.add_argument("--config", type=Path, required=True)
+    bump_release_parser.add_argument("--version", required=True)
 
     sync_parser = subparsers.add_parser(
         "sync-upstream", help="Refresh the immutable official locale baseline"
@@ -285,6 +292,16 @@ def run(arguments: argparse.Namespace) -> int:
         print(
             json.dumps(
                 build_release_info(load_config(arguments.config), arguments.version),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        return 0
+
+    if arguments.command == "bump-release":
+        print(
+            json.dumps(
+                bump_locale_version(arguments.config, arguments.version),
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
