@@ -43,15 +43,27 @@ jobs:
         id: alignment
         continue-on-error: true
         run: |
+          mkdir -p reports/versions
+          set +e
           dsw-locale version-report \
             --config locale/translation-config.yml \
             --repository-root locale \
             --report-dir reports/versions \
-            --fail-on-drift
+            --fail-on-drift 2>&1 | tee reports/versions/command.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
 
       - name: Add report to job summary
         if: always()
-        run: cat reports/versions/versions.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [ -f reports/versions/versions.md ]; then
+            cat reports/versions/versions.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# DSW version alignment failed" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat reports/versions/command.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload version report
         if: always()
@@ -62,5 +74,5 @@ jobs:
           path: reports/versions/
 
       - name: Fail when versions drift
-        if: steps.alignment.outcome == 'failure'
+        if: always() && steps.alignment.outcome == 'failure'
         run: exit 1

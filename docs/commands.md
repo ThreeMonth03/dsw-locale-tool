@@ -31,8 +31,9 @@ dsw-locale version-report \
   --fail-on-drift
 ```
 
-Weblate locked project 應設定為 `maintenance`，未鎖定 project 應為 `active`。此指令只送出
-一次 projects API request，並輸出 JSON 與 Markdown 報告。
+Weblate locked project 應設定為 `maintenance`，未鎖定 project 應為 `active`。此指令先讀
+projects API；若 API 遇到 rate limit、逾時或其他 HTTP 錯誤，則從官方 Projects 公開
+頁面讀取相同版本與 lock 狀態，並輸出 JSON 與 Markdown 報告。
 
 ## audit
 

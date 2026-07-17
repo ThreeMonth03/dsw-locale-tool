@@ -7,6 +7,7 @@ import re
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,10 @@ from dsw_locale_tool.config import TranslationConfig
 from dsw_locale_tool.errors import LocaleToolError
 
 WEBLATE_PROJECT_PATTERN = re.compile(r"^DSW (?P<major>\d+)\.(?P<minor>\d+)$")
+WEBLATE_PROJECT_PATH_PATTERN = re.compile(
+    r"^/projects/(?P<slug>dsw-(?P<major>\d+)-(?P<minor>\d+))/$"
+)
+WEBLATE_LOCK_TITLE = "This translation is locked."
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,52 @@ class WeblateVersion:
     def expected_state(self) -> str:
         """Map Weblate's lock state to the local lifecycle state."""
         return "maintenance" if self.locked else "active"
+
+
+class WeblateProjectsParser(HTMLParser):
+    """Extract DSW project versions and lock states from Weblate's public table."""
+
+    def __init__(self, base_url: str):
+        super().__init__()
+        self.base_url = base_url.rstrip("/")
+        self.in_row = False
+        self.row_slug: str | None = None
+        self.row_locked = False
+        self.versions: dict[str, WeblateVersion] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "tr":
+            self.in_row = True
+            self.row_slug = None
+            self.row_locked = False
+            return
+        if not self.in_row:
+            return
+        if tag == "a" and isinstance((href := attributes.get("href")), str):
+            if match := WEBLATE_PROJECT_PATH_PATTERN.fullmatch(href):
+                self.row_slug = match.group("slug")
+        if attributes.get("title") == WEBLATE_LOCK_TITLE:
+            self.row_locked = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "tr" or not self.in_row:
+            return
+        if self.row_slug:
+            match = WEBLATE_PROJECT_PATH_PATTERN.fullmatch(f"/projects/{self.row_slug}/")
+            if match is not None:
+                number = f"{match.group('major')}.{match.group('minor')}"
+                version = f"v{number}"
+                self.versions[version] = WeblateVersion(
+                    version=version,
+                    project=f"DSW {number}",
+                    slug=self.row_slug,
+                    locked=self.row_locked,
+                    url=f"{self.base_url}/projects/{self.row_slug}/",
+                )
+        self.in_row = False
+        self.row_slug = None
+        self.row_locked = False
 
 
 def _version_sort_key(version: str) -> tuple[int, int]:
@@ -56,9 +107,12 @@ def fetch_weblate_versions(
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as error:
-        retry_after = getattr(error.response, "headers", {}).get("Retry-After")
-        detail = f"; retry after {retry_after} seconds" if retry_after else ""
-        raise LocaleToolError(f"Unable to read Weblate project catalog{detail}: {error}") from error
+        try:
+            return fetch_public_weblate_versions(config, session=session)
+        except LocaleToolError as fallback_error:
+            raise LocaleToolError(
+                f"{_weblate_request_error(error)}; public fallback also failed: {fallback_error}"
+            ) from fallback_error
     except (TypeError, ValueError) as error:
         raise LocaleToolError(f"Weblate returned invalid JSON from {url}") from error
 
@@ -91,6 +145,38 @@ def fetch_weblate_versions(
     if not versions:
         raise LocaleToolError("Weblate project catalog contains no DSW version projects")
     return sorted(versions.values(), key=lambda item: _version_sort_key(item.version))
+
+
+def _weblate_request_error(error: requests.RequestException) -> LocaleToolError:
+    response = error.response
+    retry_after = response.headers.get("Retry-After") if response is not None else None
+    detail = f"; retry after {retry_after} seconds" if retry_after else ""
+    return LocaleToolError(f"Unable to read Weblate project catalog{detail}: {error}")
+
+
+def fetch_public_weblate_versions(
+    config: TranslationConfig,
+    *,
+    session: Any = requests,
+) -> list[WeblateVersion]:
+    """Read Weblate's public project table when its rate-limited API is unavailable."""
+    url = config.weblate.public_projects_url
+    try:
+        response = session.get(
+            url,
+            headers={"User-Agent": "dsw-locale-tool/0.1 (+version-catalog-fallback)"},
+            timeout=30,
+        )
+        response.raise_for_status()
+    except requests.RequestException as error:
+        raise LocaleToolError(f"Unable to read public Weblate project catalog: {error}") from error
+
+    parser = WeblateProjectsParser(url)
+    parser.feed(response.text)
+    parser.close()
+    if not parser.versions:
+        raise LocaleToolError("Public Weblate project catalog contains no DSW version projects")
+    return sorted(parser.versions.values(), key=lambda item: _version_sort_key(item.version))
 
 
 def available_git_branches(repository_root: str | Path) -> set[str]:
