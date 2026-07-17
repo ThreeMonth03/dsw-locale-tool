@@ -51,9 +51,11 @@ dsw-locale audit --root . --report-dir reports
 
 ## 發布
 
-Preview 通過後，到 **Actions → Publish locale installer image**，使用已確認的 commit SHA
-與 immutable `image_tag`。Workflow 會驗證 committed baseline、audit、打包，並同時發佈
-GHCR image 與 ZIP/audit artifacts。production 不應使用浮動的 `latest` tag。
+Preview 通過後，到 **Actions → Publish locale installer image**，選擇已確認的版本 branch
+或 commit SHA 與 `config_version`。Workflow 會從 build 後的 `locale.json.version` 自動產生
+image tag，驗證 committed baseline、audit、打包，再同時發佈 GHCR image 與 ZIP/audit
+artifacts。若 GHCR 已有同名 tag，workflow 會拒絕覆寫；更新翻譯前必須先增加該 branch
+的 `locale_version`。production 不應使用浮動的 `latest` tag。
 
 ## GitHub Pages 首次啟用
 
