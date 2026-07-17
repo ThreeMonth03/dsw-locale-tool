@@ -4,9 +4,29 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
-from dsw_locale_tool.preview import generate_preview_config
+from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.preview import _assert_page_available, generate_preview_config
+
+
+class FakeLocator:
+    def __init__(self, visible: bool):
+        self.visible = visible
+
+    def is_visible(self):
+        return self.visible
+
+
+class FakePage:
+    url = "http://localhost:8080/wizard/locales"
+
+    def __init__(self, visible_marker: str | None = None):
+        self.visible_marker = visible_marker
+
+    def locator(self, selector: str):
+        return FakeLocator(self.visible_marker is not None and self.visible_marker in selector)
 
 
 def test_generate_preview_config_creates_fresh_secret_and_rsa_key(tmp_path, monkeypatch):
@@ -26,3 +46,12 @@ def test_generate_preview_config_creates_fresh_secret_and_rsa_key(tmp_path, monk
     assert config["general"]["rsaPrivateKey"].startswith("-----BEGIN RSA PRIVATE KEY-----")
     assert config["database"]["connectionString"].endswith("/engine-wizard")
     assert config["cloud"]["publicRegistrationEnabled"] is False
+
+
+def test_assert_page_available_accepts_normal_page():
+    _assert_page_available(FakePage(), "locales")
+
+
+def test_assert_page_available_rejects_not_found_page():
+    with pytest.raises(LocaleToolError, match="route was not found"):
+        _assert_page_available(FakePage("not-found"), "locales")
