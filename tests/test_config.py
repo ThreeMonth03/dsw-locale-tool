@@ -35,6 +35,18 @@ def test_config_rejects_app_version_from_another_minor():
         raise AssertionError("Configuration should have been rejected")
 
 
+def test_config_rejects_locale_version_from_another_minor():
+    data = make_config().model_dump(mode="json")
+    data["versions"]["v4.32"]["locale_version"] = "4.31.9"
+
+    try:
+        TranslationConfig.model_validate(data)
+    except ValidationError as error:
+        assert "v4.32.locale_version must start with '4.32.'" in str(error)
+    else:
+        raise AssertionError("Configuration should have been rejected")
+
+
 def test_config_rejects_unknown_fields():
     data = make_config().model_dump(mode="json")
     data["upstream"]["typo"] = True

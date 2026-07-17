@@ -108,6 +108,8 @@ class TranslationConfig(StrictModel):
             refs.add(version.upstream_ref)
 
             expected_prefix = key.removeprefix("v") + "."
+            if not version.locale_version.startswith(expected_prefix):
+                raise ValueError(f"{key}.locale_version must start with {expected_prefix!r}")
             if not version.recommended_app_version.startswith(expected_prefix):
                 raise ValueError(
                     f"{key}.recommended_app_version must start with {expected_prefix!r}"

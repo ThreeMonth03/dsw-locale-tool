@@ -53,6 +53,8 @@ def test_maintained_matrix_is_derived_from_translation_config():
     assert "plan-maintained-releases.yml" in publisher
     assert "dsw-locale maintained-matrix" in propagation
     assert "select(.translation_ref != $source)" in propagation
+    assert "dsw-locale bump-release" in propagation
+    assert "needs.prepare.outputs.translation_changed == 'true'" in propagation
     assert "matrix.config_version" in preview
     assert "matrix.config_version" in publisher
     for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
@@ -70,3 +72,4 @@ def test_locale_pr_validation_exposes_preview_coordinates():
     assert "value: ${{ jobs.validate.outputs.config_version }}" in workflow
     assert "value: ${{ jobs.validate.outputs.dsw_image_tag }}" in workflow
     assert "value: ${{ jobs.validate.outputs.translation_changed }}" in workflow
+    assert "dsw-locale refresh-tree --root locale" in workflow

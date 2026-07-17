@@ -227,8 +227,9 @@ def parse_translation_unit(path: Path, repository_root: Path) -> TranslationUnit
     return unit
 
 
-def load_translation_tree(root: str | Path) -> dict[UnitKey, TranslationUnit]:
-    """Load every translation unit and reject unknown tree content."""
+def _load_translation_tree(
+    root: str | Path, *, validate_generated_index: bool
+) -> dict[UnitKey, TranslationUnit]:
     repository_root = Path(root).resolve()
     translations_root = repository_root / TRANSLATIONS_DIRECTORY
     if translations_root.is_symlink() or not translations_root.is_dir():
@@ -255,9 +256,14 @@ def load_translation_tree(root: str | Path) -> dict[UnitKey, TranslationUnit]:
         if unit.key in units:
             raise LocaleToolError(f"Duplicate translation unit identity: {unit.key!r}")
         units[unit.key] = unit
-    if index_path.read_text(encoding="utf-8") != _render_index(units):
+    if validate_generated_index and index_path.read_text(encoding="utf-8") != _render_index(units):
         raise LocaleToolError(f"Generated translation index is out of date: {index_path}")
     return units
+
+
+def load_translation_tree(root: str | Path) -> dict[UnitKey, TranslationUnit]:
+    """Load every translation unit and reject unknown or stale tree content."""
+    return _load_translation_tree(root, validate_generated_index=True)
 
 
 def _entry_translation(entry: polib.POEntry) -> str:
@@ -347,25 +353,48 @@ def _render_index(units: dict[UnitKey, TranslationUnit]) -> str:
     lines = [
         "# Translation forms",
         "",
-        "Choose the DSW component, open a form, and edit only its translation block.",
+        "Choose an open form and edit only its translation block.",
     ]
     for component in COMPONENTS:
         component_units = sorted(
             (unit for unit in units.values() if unit.component == component),
             key=lambda unit: (unit.msgid.casefold(), unit.msgctxt or ""),
         )
-        lines.extend(["", f"## {component.capitalize()} ({len(component_units)})", ""])
+        open_units = [unit for unit in component_units if not unit.translation]
+        completed_units = [unit for unit in component_units if unit.translation]
+        lines.extend(
+            [
+                "",
+                f"## {component.capitalize()}",
+                "",
+                f"{len(open_units)} open · {len(completed_units)} completed",
+                "",
+                f"### Open ({len(open_units)})",
+                "",
+            ]
+        )
         if not component_units:
-            lines.append("No local translation forms are needed.")
+            lines.append("No open forms.")
             continue
-        for unit in component_units:
-            relative = unit_relative_path(unit).relative_to(TRANSLATIONS_DIRECTORY)
-            label = unit.msgid.replace("\n", " ").strip()
-            if len(label) > 100:
-                label = label[:97].rstrip() + "..."
-            suffix = " (runtime-only)" if unit.kind == "runtime" else ""
-            lines.append(f"- [{label}]({relative.as_posix()}){suffix}")
+        if not open_units:
+            lines.append("No open forms.")
+        for unit in open_units:
+            lines.append(_render_index_entry(unit))
+        lines.extend(["", f"### Completed ({len(completed_units)})", ""])
+        if not completed_units:
+            lines.append("No completed forms.")
+        for unit in completed_units:
+            lines.append(_render_index_entry(unit))
     return "\n".join(lines) + "\n"
+
+
+def _render_index_entry(unit: TranslationUnit) -> str:
+    relative = unit_relative_path(unit).relative_to(TRANSLATIONS_DIRECTORY)
+    label = unit.msgid.replace("\n", " ").strip()
+    if len(label) > 100:
+        label = label[:97].rstrip() + "..."
+    suffix = " (runtime-only)" if unit.kind == "runtime" else ""
+    return f"- [{label}]({relative.as_posix()}){suffix}"
 
 
 def write_translation_tree(
@@ -400,7 +429,11 @@ def refresh_translation_tree(root: str | Path) -> dict[str, int]:
     """Regenerate translation forms from the official baseline without losing translations."""
     repository_root = Path(root).resolve()
     translations_root = repository_root / TRANSLATIONS_DIRECTORY
-    current = load_translation_tree(repository_root) if translations_root.exists() else {}
+    current = (
+        _load_translation_tree(repository_root, validate_generated_index=False)
+        if translations_root.exists()
+        else {}
+    )
     desired = desired_translation_units(repository_root, current)
     write_translation_tree(repository_root, desired)
 

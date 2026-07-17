@@ -40,3 +40,4 @@ the runtime English-text report. The preview does not connect to production data
 When the pull request is merged, completed translations are copied into matching blank forms on the
 other maintained release branches. This happens only when the complete source identity is unchanged;
 existing translations are never replaced.
+CI also advances the immutable locale package version; translators do not edit release metadata.

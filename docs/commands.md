@@ -79,6 +79,7 @@ dsw-locale reconcile-versions \
 
 dsw-locale maintained-matrix --config translation-config.yml
 dsw-locale release-info --config translation-config.yml --version v4.32
+dsw-locale bump-release --config translation-config.yml --version v4.32
 ```
 
 ## DSW preview and installation
