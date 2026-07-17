@@ -22,6 +22,7 @@ MANAGED_FILES = (
     ("README.md", "README.md"),
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+UPSTREAM_BRANCH_PATTERN = re.compile(r"^refs/heads/(?P<version>v\d+\.\d+)$")
 
 
 def _run(command: list[str], *, cwd: Path | None = None) -> str:
@@ -94,6 +95,32 @@ def sync_upstream(
         encoding="utf-8",
     )
     return lock
+
+
+def fetch_upstream_branch_heads(repository: str) -> dict[str, str]:
+    """Return DSW minor release branches and their current commit SHAs."""
+    output = _run(
+        [
+            "git",
+            "ls-remote",
+            "--heads",
+            repository,
+            "refs/heads/v*",
+        ]
+    )
+    branches: dict[str, str] = {}
+    for line in output.splitlines():
+        try:
+            commit, ref = line.split(maxsplit=1)
+        except ValueError as error:
+            raise LocaleToolError(f"Unexpected git ls-remote output: {line!r}") from error
+        match = UPSTREAM_BRANCH_PATTERN.fullmatch(ref)
+        if match is None:
+            continue
+        if not COMMIT_PATTERN.fullmatch(commit):
+            raise LocaleToolError(f"Upstream branch {ref!r} has an invalid commit SHA")
+        branches[match.group("version")] = commit
+    return branches
 
 
 def validate_upstream_lock(

@@ -20,6 +20,7 @@ make check
 ```console
 dsw-locale validate-config ../dsw-ui-locales-zh_Hant/translation-config.yml
 dsw-locale version-report --config translation-config.yml --repository-root . --fail-on-drift
+dsw-locale reconcile-versions --config translation-config.yml
 dsw-locale sync-upstream --config translation-config.yml --version v4.32
 dsw-locale audit --root . --report-dir reports
 dsw-locale build-source --config translation-config.yml --version v4.32 --root . --output build/locale

@@ -49,6 +49,20 @@ Weblate locked project 應設定為 `maintenance`，未鎖定 project 應為 `ac
 projects API；若 API 遇到 rate limit、逾時或其他 HTTP 錯誤，則從官方 Projects 公開
 頁面讀取相同版本與 lock 狀態，並輸出 JSON 與 Markdown 報告。
 
+## reconcile-versions
+
+將 Weblate lifecycle 狀態寫回 config，並在 `wizard-locales` 已出現對應 minor branch
+時新增 release line：
+
+```console
+dsw-locale reconcile-versions \
+  --config translation-config.yml \
+  --report-dir reports/maintenance
+```
+
+此指令不刪除 Weblate 已不列出的版本，也不建立 Git branch；它只產生可驗證的
+control-plane config 與 maintenance plan。Branch 與 baseline 由 reusable workflow 處理。
+
 ## audit
 
 同時輸出 `audit.json` 與便於 PR 閱讀的 `audit.md`：

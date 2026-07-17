@@ -10,25 +10,32 @@ project，都是本 repo 應維護的 minor line，並對應一個 `sync/vX.Y` b
 | --- | --- | --- |
 | project 未鎖定 | `active` | 同步官方翻譯、接受補翻、preview、打包與發版 |
 | project locked | `maintenance` | 仍做上述工作；locked 不等於停止支援 |
-| project 已不在 Weblate | `retired` | 凍結但保留 branch、lock 與既有 artifacts |
+| project 已不在 Weblate | 保留原狀態 | 不自動刪除、archive 或退役，留給維護者判斷 |
 
-目前 Weblate 列出 DSW 4.29、4.30、4.31 與 4.32；4.29–4.31 為 locked，4.32
-仍開放。這份文字只是方便閱讀，實際判定由 CI 每週讀取 Weblate API，因此新增 4.33
-時不需等待人員記得更新文件才會被發現。
+內容 repo 目前明確維護 4.29–4.32，這四條線不自動 archive。實際官方清單由
+排程讀取 Weblate，文件不複製一份會過期的「目前最新版本」。
 
-## 自動偵測版本漂移
+## 自動維護
 
-`Check Weblate version alignment` workflow 每週與手動執行時先送出一次 Weblate projects
-API request；若 API 遇到 rate limit、逾時或其他 HTTP 錯誤，則改讀同一官方 Projects
-公開頁面的版本與 lock 圖示。之後比較：
+translation repo 的排程 workflow 呼叫 tool repo 唯一的 reusable maintenance
+workflow。它使用 translation repo 自己的 `GITHUB_TOKEN`，不需要 PAT 或常駐服務。
+每次執行：
 
-1. Weblate 列出的 DSW minor lines。
-2. `translation-config.yml` 的版本與 lifecycle state。
-3. Git 中是否有對應的 `sync/vX.Y` branch。
+1. 讀取 Weblate projects API；若 rate limit、逾時或 HTTP 失敗，改讀同一官方
+   Projects 公開頁面。
+2. 只有 Weblate 已列出且 `wizard-locales` 已有對應 `vX.Y` branch 時，才把
+   新版本加入 config。
+3. 從 `main` 建立 `sync/vX.Y`，同步官方 baseline；不猜測舊版 override 在
+   新 POT 仍適用，因此不整包複製。
+4. 對每個未退役 branch 更新 official baseline，再執行 audit、build 與 package。
 
-若少了設定、branch，或 locked 狀態與本地 state 不一致，workflow 會失敗並留下 Markdown
-及 JSON artifacts；若兩種官方來源都無法讀取，artifact 與 job summary 會保留原始錯誤。
-維護者也可在翻譯 repo checkout 中執行：
+已有 branch 若出現 placeholder、結構或 package 錯誤，workflow 不 push 新 baseline；
+新 branch 則保留已鎖定的官方 baseline，但不產生可發布結果。兩者都會留下
+Actions artifact 與可追蹤 Issue。
+
+## 手動核對
+
+維護者可在翻譯 repo checkout 中執行：
 
 ```console
 dsw-locale version-report \
@@ -37,12 +44,6 @@ dsw-locale version-report \
   --report-dir reports/versions \
   --fail-on-drift
 ```
-
-## 新版本處理方式
-
-CI 發現新的 `vX.Y` 後，維護者新增設定、建立 `sync/vX.Y`、執行一次
-`sync-upstream`，再 review 並 commit `upstream/` 與 `upstream.lock.yml`。不同版本只移植
-audit 證明仍有效的本地補翻，不直接複製整包 PO。
 
 Build、preview 與 publish 只使用 branch 內已 commit 的 baseline，不在執行時偷偷更新
 upstream。這使同一 commit 永遠產生相同翻譯來源；日後 Weblate 更新則以另一筆可 review
