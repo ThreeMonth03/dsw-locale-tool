@@ -17,6 +17,8 @@
 `translation-config.yml` 產生 `locale.json`，因此不會沿用上游 branch 內過期的版本欄位。
 `upstream/upstream.lock.yml` 記錄同步時的完整 commit SHA；build、preview 與 publish
 都驗證此 lock 並使用已 commit 的 baseline，不在建置途中重新抓取可變內容。
+所有維護版本的 E2E preview matrix 也直接由同一份 `translation-config.yml` 產生；workflow
+不保存第二份 DSW 版本清單。
 
 ## 為什麼保留 extras
 
