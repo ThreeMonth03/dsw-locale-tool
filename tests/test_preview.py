@@ -8,25 +8,56 @@ import pytest
 import yaml
 
 from dsw_locale_tool.errors import LocaleToolError
-from dsw_locale_tool.preview import _assert_page_available, _user_content, generate_preview_config
+from dsw_locale_tool.preview import (
+    _user_content,
+    _wait_for_application,
+    _wait_for_page_available,
+    generate_preview_config,
+)
 
 
 class FakeLocator:
-    def __init__(self, visible: bool):
+    def __init__(self, visible: bool, *, settles: bool = False):
         self.visible = visible
+        self.settles = settles
+
+    @property
+    def first(self):
+        return self
 
     def is_visible(self):
         return self.visible
+
+    def wait_for(self, *, state: str, timeout: int):
+        assert timeout == 30_000
+        if state == "visible" and self.visible:
+            return
+        if state == "hidden" and not self.visible:
+            return
+        if state == "hidden" and self.settles:
+            self.visible = False
+            return
+        raise TimeoutError
 
 
 class FakePage:
     url = "http://localhost:8080/wizard/locales"
 
-    def __init__(self, visible_marker: str | None = None):
+    def __init__(self, visible_marker: str | None = None, *, settles: bool = False):
         self.visible_marker = visible_marker
+        self.settles = settles
+        self.locators: dict[str, FakeLocator] = {}
 
     def locator(self, selector: str):
-        return FakeLocator(self.visible_marker is not None and self.visible_marker in selector)
+        if selector not in self.locators:
+            visible = selector == "body > :not(script)" or (
+                self.visible_marker is not None and self.visible_marker in selector
+            )
+            self.locators[selector] = FakeLocator(
+                visible,
+                settles=self.settles and self.visible_marker is not None,
+            )
+        return self.locators[selector]
 
 
 def test_generate_preview_config_creates_fresh_secret_and_rsa_key(tmp_path, monkeypatch):
@@ -48,13 +79,21 @@ def test_generate_preview_config_creates_fresh_secret_and_rsa_key(tmp_path, monk
     assert config["cloud"]["publicRegistrationEnabled"] is False
 
 
-def test_assert_page_available_accepts_normal_page():
-    _assert_page_available(FakePage(), "locales")
+def test_wait_for_application_requires_a_mounted_visible_page():
+    _wait_for_application(FakePage())
 
 
-def test_assert_page_available_rejects_not_found_page():
+def test_wait_for_page_available_accepts_normal_page():
+    _wait_for_page_available(FakePage(), "locales")
+
+
+def test_wait_for_page_available_accepts_initial_router_state():
+    _wait_for_page_available(FakePage("not-found", settles=True), "locales")
+
+
+def test_wait_for_page_available_rejects_stable_not_found_page():
     with pytest.raises(LocaleToolError, match="route was not found"):
-        _assert_page_available(FakePage("not-found"), "locales")
+        _wait_for_page_available(FakePage("not-found"), "locales")
 
 
 def test_user_content_includes_display_name_parts():
