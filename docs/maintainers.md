@@ -2,6 +2,11 @@
 
 維護者負責把自然語言 Issue 轉成內容變更；翻譯者不必接觸 tool repo。
 
+對 `sync/vX.Y` 提出的 PR 由 translation repo 的 `pull_request_target` workflow 呼叫本 repo
+唯一的 reusable validator。Workflow 只使用 read permission，從 default branch 載入可信
+設定，並分開 checkout base 與 contributor head；不執行 contributor 提交的程式或
+GitHub Actions。驗證包含變更範圍、config、audit、build 與 package。
+
 ## 處理一筆回報
 
 1. 確認目標 DSW minor version，切到內容 repo 的 `sync/vX.Y`。

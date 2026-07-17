@@ -8,6 +8,20 @@
 dsw-locale validate-config translation-config.yml
 ```
 
+## validate-pr
+
+比較 PR 的 base 與 head translation trees，限制版本 branch 只能修改翻譯、詞彙與說明文件：
+
+```console
+dsw-locale validate-pr \
+  --base-root base \
+  --head-root locale \
+  --branch sync/v4.32
+```
+
+`upstream/`、GitHub workflow 與其他管理檔案不得由翻譯 PR 修改。
+`translation-config.yml` 若有變更，只能提高目標版本的 `locale_version`。
+
 ## sync-upstream
 
 將指定 DSW release line 的 POT、PO、metadata 與 README 複製到 `upstream/`：

@@ -1,0 +1,114 @@
+name: Validate locale pull request
+
+on:
+  workflow_call:
+    inputs:
+      base_repository:
+        type: string
+        required: true
+      base_sha:
+        type: string
+        required: true
+      head_repository:
+        type: string
+        required: true
+      head_sha:
+        type: string
+        required: true
+      base_ref:
+        type: string
+        required: true
+      pull_request_number:
+        type: number
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted locale tool
+        uses: actions/checkout@v6
+        with:
+          repository: ThreeMonth03/dsw-locale-tool
+          ref: main
+          path: tool
+          persist-credentials: false
+
+      - name: Check out base translation tree
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.base_repository }}
+          ref: ${{ inputs.base_sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Check out proposed translation tree
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.head_repository }}
+          ref: ${{ inputs.head_sha }}
+          path: locale
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+
+      - name: Install trusted locale tool
+        run: python -m pip install ./tool
+
+      - name: Resolve target version
+        id: target
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: echo "version=${BASE_REF#sync/}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate PR scope
+        run: |
+          dsw-locale validate-pr \
+            --base-root base \
+            --head-root locale \
+            --branch "${{ inputs.base_ref }}"
+
+      - name: Audit locale
+        run: |
+          dsw-locale audit \
+            --root locale \
+            --report-dir reports \
+            --fail-on placeholders \
+            --fail-on structure
+
+      - name: Build locale source
+        run: |
+          dsw-locale build-source \
+            --config locale/translation-config.yml \
+            --version "${{ steps.target.outputs.version }}" \
+            --root locale \
+            --output build/locale
+
+      - name: Package locale
+        run: |
+          dsw-locale package \
+            --source build/locale \
+            --output dist/locale.zip
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locale-pr-${{ inputs.pull_request_number }}
+          if-no-files-found: warn
+          path: |
+            reports/
+            dist/locale.zip
