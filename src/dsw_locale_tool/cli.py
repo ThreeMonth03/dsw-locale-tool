@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from dsw_locale_tool.audit import audit_repository, failing_categories, write_reports
 from dsw_locale_tool.build import build_source, package_source
+from dsw_locale_tool.changes import validate_translation_pr
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
@@ -37,6 +38,13 @@ def build_parser() -> argparse.ArgumentParser:
         "validate-config", help="Validate translation-config.yml"
     )
     validate_parser.add_argument("config", type=Path)
+
+    validate_pr_parser = subparsers.add_parser(
+        "validate-pr", help="Validate files changed by a translation pull request"
+    )
+    validate_pr_parser.add_argument("--base-root", type=Path, required=True)
+    validate_pr_parser.add_argument("--head-root", type=Path, required=True)
+    validate_pr_parser.add_argument("--branch", required=True)
 
     versions_parser = subparsers.add_parser(
         "version-report", help="Compare configured versions and branches with official Weblate"
@@ -158,6 +166,20 @@ def run(arguments: argparse.Namespace) -> int:
                     "versions": sorted(config.versions),
                 },
                 ensure_ascii=False,
+            )
+        )
+        return 0
+
+    if arguments.command == "validate-pr":
+        print(
+            json.dumps(
+                validate_translation_pr(
+                    arguments.base_root,
+                    arguments.head_root,
+                    arguments.branch,
+                ),
+                ensure_ascii=False,
+                indent=2,
             )
         )
         return 0
