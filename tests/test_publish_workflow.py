@@ -4,14 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "publish-installer.yml"
+WORKFLOWS = Path(__file__).parents[1] / ".github" / "workflows"
 
 
-def test_installer_tag_is_derived_and_immutable():
-    workflow = WORKFLOW.read_text(encoding="utf-8")
+def test_publisher_is_scheduled_and_never_overwrites_a_tag():
+    publisher = (WORKFLOWS / "publish-installer.yml").read_text(encoding="utf-8")
+    release = (WORKFLOWS / "publish-installer-release.yml").read_text(encoding="utf-8")
 
-    assert "image_tag:" not in workflow
-    assert 'tool/build/locale/locale.json"))["version"]' in workflow
-    assert "Refuse to overwrite an immutable tag" in workflow
-    assert 'docker buildx imagetools inspect "$IMAGE_REFERENCE"' in workflow
-    assert "tags: ${{ steps.image.outputs.reference }}" in workflow
+    assert 'cron: "17 4 * * *"' in publisher
+    assert "description: Version branch, tag, or commit" not in publisher
+    assert "description: Key in translation-config.yml" not in publisher
+    assert "dsw-locale release-info" in release
+    assert 'docker buildx imagetools inspect "$IMAGE_REFERENCE"' in release
+    assert 'echo "publish=false"' in release
+    assert "if: steps.tag.outputs.publish == 'true'" in release
+    assert "tags: ${{ steps.image.outputs.reference }}" in release
+    assert "org.opencontainers.image.revision=${{ steps.image.outputs.revision }}" in release

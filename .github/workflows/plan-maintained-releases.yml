@@ -1,0 +1,55 @@
+name: Plan maintained locale releases
+
+on:
+  workflow_call:
+    inputs:
+      translation_repository:
+        required: true
+        type: string
+    outputs:
+      matrix:
+        value: ${{ jobs.plan.outputs.matrix }}
+      translation_repository:
+        value: ${{ jobs.plan.outputs.translation_repository }}
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+      translation_repository: ${{ steps.repository.outputs.value }}
+    steps:
+      - name: Check out tool
+        uses: actions/checkout@v6
+        with:
+          path: tool
+
+      - name: Check out translation control branch
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: main
+          path: locale
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Install tool
+        run: python -m pip install ./tool
+
+      - name: Resolve translation repository
+        id: repository
+        env:
+          TRANSLATION_REPOSITORY: ${{ inputs.translation_repository }}
+        run: echo "value=$TRANSLATION_REPOSITORY" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve maintained release matrix
+        id: matrix
+        run: echo "value=$(dsw-locale maintained-matrix --config locale/translation-config.yml)" >> "$GITHUB_OUTPUT"

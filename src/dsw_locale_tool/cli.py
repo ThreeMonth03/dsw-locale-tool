@@ -16,7 +16,7 @@ from dsw_locale_tool.changes import validate_translation_pr
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
-from dsw_locale_tool.plans import build_preview_matrix
+from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
@@ -67,11 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile_parser.add_argument("--config", type=Path, required=True)
     reconcile_parser.add_argument("--report-dir", type=Path, default=Path("reports/maintenance"))
 
-    preview_matrix_parser = subparsers.add_parser(
-        "preview-matrix",
-        help="Emit the preview matrix for maintained DSW release lines",
+    maintained_matrix_parser = subparsers.add_parser(
+        "maintained-matrix",
+        help="Emit the CI matrix for maintained DSW release lines",
     )
-    preview_matrix_parser.add_argument("--config", type=Path, required=True)
+    maintained_matrix_parser.add_argument("--config", type=Path, required=True)
+
+    release_info_parser = subparsers.add_parser(
+        "release-info",
+        help="Emit immutable locale release coordinates",
+    )
+    release_info_parser.add_argument("--config", type=Path, required=True)
+    release_info_parser.add_argument("--version", required=True)
 
     sync_parser = subparsers.add_parser(
         "sync-upstream", help="Refresh the immutable official locale baseline"
@@ -241,10 +248,20 @@ def run(arguments: argparse.Namespace) -> int:
         print(f"Wrote {json_path} and {markdown_path}")
         return 0
 
-    if arguments.command == "preview-matrix":
+    if arguments.command == "maintained-matrix":
         print(
             json.dumps(
-                build_preview_matrix(load_config(arguments.config)),
+                build_maintained_matrix(load_config(arguments.config)),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        return 0
+
+    if arguments.command == "release-info":
+        print(
+            json.dumps(
+                build_release_info(load_config(arguments.config), arguments.version),
                 ensure_ascii=False,
                 separators=(",", ":"),
             )

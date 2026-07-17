@@ -26,12 +26,18 @@ def test_workflows_use_node_24_artifact_action():
             assert "actions/upload-artifact@v7" in contents
 
 
-def test_supported_preview_matrix_is_derived_from_translation_config():
-    workflow = (
-        Path(__file__).parents[1] / ".github" / "workflows" / "preview-supported.yml"
-    ).read_text(encoding="utf-8")
+def test_maintained_matrix_is_derived_from_translation_config():
+    workflows = Path(__file__).parents[1] / ".github" / "workflows"
+    planner = (workflows / "plan-maintained-releases.yml").read_text(encoding="utf-8")
+    preview = (workflows / "preview-supported.yml").read_text(encoding="utf-8")
+    publisher = (workflows / "publish-installer.yml").read_text(encoding="utf-8")
 
-    assert "dsw-locale preview-matrix --config locale/translation-config.yml" in workflow
-    assert "matrix.config_version" in workflow
+    assert "dsw-locale maintained-matrix --config locale/translation-config.yml" in planner
+    assert "plan-maintained-releases.yml" in preview
+    assert "plan-maintained-releases.yml" in publisher
+    assert "matrix.config_version" in preview
+    assert "matrix.config_version" in publisher
     for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
-        assert version not in workflow
+        assert version not in planner
+        assert version not in preview
+        assert version not in publisher
