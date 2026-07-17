@@ -13,10 +13,10 @@ from dsw_locale_tool.catalog import (
     catalog_index,
     entry_is_translated,
     load_catalog,
-    merge_catalogs,
     source_strings,
 )
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.translation_tree import build_component_catalog, load_translation_tree
 
 CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 LATIN_WORD_PATTERN = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
@@ -106,12 +106,12 @@ def load_allowed_content(
 
 def _source_index(locale_root: Path) -> dict[str, list[dict[str, Any]]]:
     template = load_catalog(locale_root / "upstream" / "wizard.pot")
-    effective = merge_catalogs(
-        locale_root / "upstream" / "wizard.po",
-        locale_root / "overrides" / "wizard.po",
-        locale_root / "extras" / "wizard.po",
-    )
-    extras = load_catalog(locale_root / "extras" / "wizard.po", required=False)
+    effective = build_component_catalog(locale_root, "wizard")
+    runtime_units = [
+        unit
+        for unit in load_translation_tree(locale_root).values()
+        if unit.component == "wizard" and unit.kind == "runtime"
+    ]
     effective_index = catalog_index(effective)
     sources: dict[str, list[dict[str, Any]]] = {}
 
@@ -133,19 +133,19 @@ def _source_index(locale_root: Path) -> dict[str, list[dict[str, Any]]]:
                     }
                 )
 
-    for entry in extras:
-        if entry.obsolete:
-            continue
-        status = "extra_translated" if entry_is_translated(entry) else "extra_missing"
-        for source in source_strings(entry):
+    for unit in runtime_units:
+        status = "runtime_translated" if unit.translation else "runtime_missing"
+        for source in (unit.msgid, unit.msgid_plural):
+            if source is None:
+                continue
             for candidate in {normalize_runtime_text(source), _visible_text_variant(source)}:
                 if not candidate:
                     continue
                 sources.setdefault(candidate, []).append(
                     {
                         "status": status,
-                        "msgid": entry.msgid,
-                        "msgctxt": entry.msgctxt,
+                        "msgid": unit.msgid,
+                        "msgctxt": unit.msgctxt,
                     }
                 )
     return sources
@@ -174,9 +174,9 @@ def _classification(
     statuses = {item["status"] for item in matches}
     if "official_missing" in statuses:
         return "official_missing", matches
-    if statuses & {"official_translated", "extra_translated"}:
+    if statuses & {"official_translated", "runtime_translated"}:
         return "unexpected_source", matches
-    if "extra_missing" in statuses:
+    if "runtime_missing" in statuses:
         return "runtime_not_in_pot", matches
     return "runtime_not_in_pot", []
 

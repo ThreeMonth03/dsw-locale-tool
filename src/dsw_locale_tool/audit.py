@@ -1,79 +1,123 @@
-"""Audit translation coverage and local overlay health."""
+"""Audit translation coverage and Markdown translation-tree health."""
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
+
+import polib
 
 from dsw_locale_tool.catalog import (
     catalog_index,
     entry_is_translated,
     load_catalog,
-    merge_catalogs,
     placeholder_mismatches,
     translated_strings,
 )
-
-COMPONENTS = ("wizard", "mail")
+from dsw_locale_tool.translation_tree import (
+    COMPONENTS,
+    TranslationUnit,
+    UnitKey,
+    load_translation_tree,
+)
 
 
 def _entry_summary(entry: Any) -> dict[str, str | None]:
     return {"msgid": entry.msgid, "msgctxt": entry.msgctxt}
 
 
-def _same_translation(left: Any, right: Any) -> bool:
-    return translated_strings(left) == translated_strings(right) and left.flags == right.flags
+def _unit_summary(unit: TranslationUnit) -> dict[str, str | None]:
+    return {"msgid": unit.msgid, "msgctxt": unit.msgctxt}
 
 
-def audit_component(root: Path, component: str) -> dict[str, Any]:
+def _same_translation(unit: TranslationUnit, entry: Any) -> bool:
+    return entry_is_translated(entry) and translated_strings(entry) == [unit.translation]
+
+
+def _effective_entry(template_entry: Any, baseline_entry: Any, unit: TranslationUnit | None) -> Any:
+    if unit is None or not unit.translation:
+        return baseline_entry
+    entry = (
+        copy.deepcopy(template_entry)
+        if template_entry is not None
+        else polib.POEntry(
+            msgid=unit.msgid,
+            msgctxt=unit.msgctxt,
+            msgid_plural=unit.msgid_plural or "",
+        )
+    )
+    entry.flags = [flag for flag in entry.flags if flag != "fuzzy"]
+    entry.msgstr = "" if unit.msgid_plural else unit.translation
+    entry.msgstr_plural = {"0": unit.translation} if unit.msgid_plural else {}
+    return entry
+
+
+def audit_component(
+    root: Path,
+    component: str,
+    all_units: dict[UnitKey, TranslationUnit],
+) -> dict[str, Any]:
     """Audit one gettext domain such as ``wizard`` or ``mail``."""
     template = load_catalog(root / "upstream" / f"{component}.pot")
     baseline = load_catalog(root / "upstream" / f"{component}.po")
-    overrides = load_catalog(root / "overrides" / f"{component}.po", required=False)
-    extras = load_catalog(root / "extras" / f"{component}.po", required=False)
-    effective = merge_catalogs(
-        root / "upstream" / f"{component}.po",
-        root / "overrides" / f"{component}.po",
-        root / "extras" / f"{component}.po",
-    )
-
     template_index = catalog_index(template)
     baseline_index = catalog_index(baseline)
-    override_index = catalog_index(overrides)
-    extras_index = catalog_index(extras)
-    effective_index = catalog_index(effective)
+    units = {key: unit for key, unit in all_units.items() if unit.component == component}
 
-    missing = [
-        _entry_summary(entry)
-        for key, entry in template_index.items()
-        if not entry_is_translated(effective_index.get(key))
+    effective: dict[tuple[str | None, str], Any] = {}
+    missing: list[dict[str, str | None]] = []
+    fuzzy: list[dict[str, str | None]] = []
+    unscaffolded: list[dict[str, str | None]] = []
+    for catalog_key, template_entry in template_index.items():
+        unit_key: UnitKey = (component, *catalog_key)
+        baseline_entry = baseline_index.get(catalog_key)
+        unit = units.get(unit_key)
+        candidate = _effective_entry(template_entry, baseline_entry, unit)
+        effective[catalog_key] = candidate
+        if not entry_is_translated(candidate):
+            missing.append(_entry_summary(template_entry))
+        if candidate is not None and "fuzzy" in candidate.flags:
+            fuzzy.append(_entry_summary(template_entry))
+        if not entry_is_translated(baseline_entry) and unit is None:
+            unscaffolded.append(_entry_summary(template_entry))
+
+    stale_translations = [
+        _unit_summary(unit)
+        for unit in units.values()
+        if unit.kind == "message" and (unit.msgctxt, unit.msgid) not in template_index
     ]
-    fuzzy = [
-        _entry_summary(entry)
-        for key, entry in template_index.items()
-        if (candidate := effective_index.get(key)) is not None and "fuzzy" in candidate.flags
+    runtime_sources_now_upstream = [
+        _unit_summary(unit)
+        for unit in units.values()
+        if unit.kind == "runtime" and (unit.msgctxt, unit.msgid) in template_index
     ]
-    misplaced_overrides = [
-        _entry_summary(entry) for key, entry in override_index.items() if key not in template_index
-    ]
-    extras_now_upstream = [
-        _entry_summary(entry) for key, entry in extras_index.items() if key in template_index
-    ]
-    redundant_overrides = [
-        _entry_summary(entry)
-        for key, entry in override_index.items()
-        if (upstream_entry := baseline_index.get(key)) is not None
-        and _same_translation(entry, upstream_entry)
+    redundant_translations = [
+        _unit_summary(unit)
+        for unit in units.values()
+        if unit.translation
+        and (entry := baseline_index.get((unit.msgctxt, unit.msgid))) is not None
+        and _same_translation(unit, entry)
     ]
 
     placeholder_issues: list[dict[str, object]] = []
-    relevant_keys = set(template_index) | set(extras_index)
-    for key in relevant_keys:
-        entry = effective_index.get(key)
+    for entry in effective.values():
         if entry is not None and entry_is_translated(entry):
             placeholder_issues.extend(placeholder_mismatches(entry))
+    for unit in units.values():
+        if unit.kind != "runtime" or not unit.translation:
+            continue
+        entry = _effective_entry(None, None, unit)
+        placeholder_issues.extend(placeholder_mismatches(entry))
 
+    completed = sum(bool(unit.translation) for unit in units.values())
+    structure_issues = (
+        len(unscaffolded)
+        + len(stale_translations)
+        + len(runtime_sources_now_upstream)
+        + len(redundant_translations)
+    )
     return {
         "counts": {
             "source_messages": len(template_index),
@@ -81,22 +125,27 @@ def audit_component(root: Path, component: str) -> dict[str, Any]:
                 entry_is_translated(baseline_index.get(key)) for key in template_index
             ),
             "effective_translated": sum(
-                entry_is_translated(effective_index.get(key)) for key in template_index
+                entry_is_translated(effective.get(key)) for key in template_index
             ),
             "missing": len(missing),
             "fuzzy": len(fuzzy),
-            "overrides": len(override_index),
-            "extras": len(extras_index),
-            "extras_now_upstream": len(extras_now_upstream),
-            "misplaced_overrides": len(misplaced_overrides),
-            "redundant_overrides": len(redundant_overrides),
+            "translation_units": len(units),
+            "completed_units": completed,
+            "blank_units": len(units) - completed,
+            "runtime_units": sum(unit.kind == "runtime" for unit in units.values()),
+            "unscaffolded": len(unscaffolded),
+            "stale_translations": len(stale_translations),
+            "runtime_sources_now_upstream": len(runtime_sources_now_upstream),
+            "redundant_translations": len(redundant_translations),
+            "structure_issues": structure_issues,
             "placeholder_issues": len(placeholder_issues),
         },
         "missing": missing,
         "fuzzy": fuzzy,
-        "extras_now_upstream": extras_now_upstream,
-        "misplaced_overrides": misplaced_overrides,
-        "redundant_overrides": redundant_overrides,
+        "unscaffolded": unscaffolded,
+        "stale_translations": stale_translations,
+        "runtime_sources_now_upstream": runtime_sources_now_upstream,
+        "redundant_translations": redundant_translations,
         "placeholder_issues": placeholder_issues,
     }
 
@@ -104,8 +153,9 @@ def audit_component(root: Path, component: str) -> dict[str, Any]:
 def audit_repository(root: str | Path) -> dict[str, Any]:
     """Audit both DSW gettext domains in a checked-out version branch."""
     repository_root = Path(root).resolve()
+    units = load_translation_tree(repository_root)
     components = {
-        component: audit_component(repository_root, component) for component in COMPONENTS
+        component: audit_component(repository_root, component, units) for component in COMPONENTS
     }
     return {"schema_version": 1, "components": components}
 
@@ -115,23 +165,26 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines = [
         "# DSW locale audit",
         "",
-        "| Component | Source | Upstream translated | Effective translated | Missing | "
-        "Extras | Placeholder issues |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Component | Source | Upstream | Effective | Missing | Forms | Completed | "
+        "Runtime-only | Structure | Placeholders |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for component, details in report["components"].items():
         counts = details["counts"]
         lines.append(
             f"| {component} | {counts['source_messages']} | {counts['upstream_translated']} "
-            f"| {counts['effective_translated']} | {counts['missing']} | {counts['extras']} "
+            f"| {counts['effective_translated']} | {counts['missing']} "
+            f"| {counts['translation_units']} | {counts['completed_units']} "
+            f"| {counts['runtime_units']} | {counts['structure_issues']} "
             f"| {counts['placeholder_issues']} |"
         )
 
     labels = {
         "missing": "Missing or fuzzy translations",
-        "extras_now_upstream": "Extras now available upstream",
-        "misplaced_overrides": "Overrides absent from the upstream POT",
-        "redundant_overrides": "Overrides identical to upstream",
+        "unscaffolded": "Missing translation forms",
+        "stale_translations": "Translated sources absent from upstream",
+        "runtime_sources_now_upstream": "Runtime-only sources now available upstream",
+        "redundant_translations": "Local translations identical to upstream",
         "placeholder_issues": "Placeholder mismatches",
     }
     for component, details in report["components"].items():
@@ -168,7 +221,7 @@ def failing_categories(report: dict[str, Any], categories: set[str]) -> list[str
     count_keys = {
         "missing": "missing",
         "placeholders": "placeholder_issues",
-        "structure": "misplaced_overrides",
+        "structure": "structure_issues",
     }
     failures: list[str] = []
     for category in ("missing", "placeholders", "structure"):

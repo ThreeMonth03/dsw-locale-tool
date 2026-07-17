@@ -18,11 +18,15 @@ def test_audit_classifies_translation_work(tmp_path):
         "effective_translated": 2,
         "missing": 1,
         "fuzzy": 0,
-        "overrides": 2,
-        "extras": 1,
-        "extras_now_upstream": 0,
-        "misplaced_overrides": 0,
-        "redundant_overrides": 1,
+        "translation_units": 3,
+        "completed_units": 2,
+        "blank_units": 1,
+        "runtime_units": 1,
+        "unscaffolded": 0,
+        "stale_translations": 0,
+        "runtime_sources_now_upstream": 0,
+        "redundant_translations": 0,
+        "structure_issues": 0,
         "placeholder_issues": 1,
     }
     assert wizard["missing"][0]["msgid"] == "Still missing"
@@ -45,5 +49,5 @@ def test_markdown_contains_summary_and_findings(tmp_path):
 
     markdown = render_markdown(audit_repository(tmp_path))
 
-    assert "| wizard | 3 | 1 | 2 | 1 | 1 | 1 |" in markdown
+    assert "| wizard | 3 | 1 | 2 | 1 | 3 | 2 | 1 | 0 | 1 |" in markdown
     assert "`Still missing`" in markdown

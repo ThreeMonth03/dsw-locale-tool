@@ -54,7 +54,7 @@ jobs:
         run: |
           dsw-locale validate-config locale/translation-config.yml
 
-      - name: Audit locale overlays
+      - name: Audit translation tree
         run: |
           dsw-locale audit \
             --root locale \

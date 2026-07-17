@@ -44,11 +44,12 @@ def _translation_path_allowed(path: str) -> bool:
         "CONTRIBUTING.md",
         "glossary/zh-Hant.csv",
         "locale/README.md",
+        "translations/README.md",
         "translation-config.yml",
     }:
         return True
-    if len(parts) == 2 and parts[0] in {"overrides", "extras"}:
-        return candidate.suffix == ".po"
+    if len(parts) >= 3 and parts[0] == "translations":
+        return parts[1] in {"wizard", "mail"} and path.endswith(".translation.md")
     return len(parts) >= 2 and parts[0] == "docs" and candidate.suffix == ".md"
 
 

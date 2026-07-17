@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,12 @@ import polib
 import yaml
 
 from dsw_locale_tool.config import TranslationConfig
+from dsw_locale_tool.translation_tree import (
+    TranslationUnit,
+    load_translation_tree,
+    refresh_translation_tree,
+    write_translation_tree,
+)
 
 
 def make_catalog(path: Path, entries: list[dict[str, Any]]) -> None:
@@ -52,7 +59,7 @@ def make_config(repository: str = "https://example.test/wizard-locales.git") -> 
 
 
 def make_translation_tree(root: Path) -> None:
-    """Create all three layers used by audit and build tests."""
+    """Create an official baseline and representative Markdown translations."""
     make_catalog(
         root / "upstream" / "wizard.pot",
         [
@@ -69,18 +76,6 @@ def make_translation_tree(root: Path) -> None:
             {"msgid": "Still missing", "msgstr": ""},
         ],
     )
-    make_catalog(
-        root / "overrides" / "wizard.po",
-        [
-            {"msgid": "Hello", "msgstr": "您好"},
-            {"msgid": "Count: %s", "msgstr": "數量"},
-        ],
-    )
-    make_catalog(
-        root / "extras" / "wizard.po",
-        [{"msgid": "Runtime only", "msgstr": "僅執行階段出現"}],
-    )
-
     make_catalog(
         root / "upstream" / "mail.pot",
         [{"msgid": "Reset password", "msgstr": ""}],
@@ -103,3 +98,10 @@ def make_translation_tree(root: Path) -> None:
         ),
         encoding="utf-8",
     )
+    refresh_translation_tree(root)
+    units = load_translation_tree(root)
+    count_key = ("wizard", None, "Count: %s")
+    units[count_key] = replace(units[count_key], translation="數量")
+    runtime_unit = TranslationUnit("wizard", "runtime", "Runtime only", "僅執行階段出現")
+    units[runtime_unit.key] = runtime_unit
+    write_translation_tree(root, units)

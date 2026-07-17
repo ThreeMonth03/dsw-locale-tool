@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dsw-locale-tool"
 version = "0.1.0"
-description = "Synchronize, audit, and package local DSW UI locale overlays"
+description = "Synchronize, audit, and package Markdown translations for DSW UI locales"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

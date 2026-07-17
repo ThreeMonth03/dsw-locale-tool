@@ -7,12 +7,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from dsw_locale_tool.catalog import merge_catalogs
 from dsw_locale_tool.config import TranslationConfig
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.sync import validate_upstream_lock
+from dsw_locale_tool.translation_tree import COMPONENTS, build_component_catalog
 
-COMPONENTS = ("wizard", "mail")
 PACKAGER = "@ds-wizard/locale-packager@0.3.0"
 
 
@@ -39,11 +38,7 @@ def build_source(
     output_path.mkdir(parents=True, exist_ok=True)
 
     for component in COMPONENTS:
-        catalog = merge_catalogs(
-            repository_root / "upstream" / f"{component}.po",
-            repository_root / "overrides" / f"{component}.po",
-            repository_root / "extras" / f"{component}.po",
-        )
+        catalog = build_component_catalog(repository_root, component)
         catalog.save(output_path / f"{component}.po")
 
     metadata = {
