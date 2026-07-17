@@ -1,0 +1,90 @@
+name: Build locale package
+
+on:
+  workflow_dispatch:
+    inputs:
+      translation_repository:
+        description: Translation content repository
+        required: true
+        default: ThreeMonth03/dsw-ui-locales-zh_Hant
+      translation_ref:
+        description: Version branch, tag, or commit
+        required: true
+        default: sync/v4.32
+      dsw_version:
+        description: Key in translation-config.yml
+        required: true
+        default: v4.32
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tool
+        uses: actions/checkout@v6
+        with:
+          path: tool
+
+      - name: Check out translation content
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.translation_ref }}
+          path: locale
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+
+      - name: Install tool
+        run: python -m pip install ./tool
+
+      - name: Validate and refresh official baseline
+        run: |
+          dsw-locale validate-config locale/translation-config.yml
+          dsw-locale sync-upstream \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.dsw_version }}" \
+            --output locale
+
+      - name: Audit locale overlays
+        run: |
+          dsw-locale audit \
+            --root locale \
+            --report-dir reports \
+            --fail-on placeholders \
+            --fail-on structure
+
+      - name: Build locale source
+        run: |
+          dsw-locale build-source \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.dsw_version }}" \
+            --root locale \
+            --output build/locale
+
+      - name: Package locale
+        run: |
+          dsw-locale package \
+            --source build/locale \
+            --output dist/dsw_zh_Hant_${{ inputs.dsw_version }}.zip
+
+      - name: Upload locale and audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsw-zh-Hant-${{ inputs.dsw_version }}
+          path: |
+            dist/*.zip
+            reports/audit.json
+            reports/audit.md

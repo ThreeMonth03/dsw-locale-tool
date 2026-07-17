@@ -1,0 +1,145 @@
+"""PO catalog inspection and overlay merging."""
+
+from __future__ import annotations
+
+import copy
+import re
+from collections import Counter
+from pathlib import Path
+from typing import TypeAlias
+
+import polib
+
+from dsw_locale_tool.errors import LocaleToolError
+
+CatalogKey: TypeAlias = tuple[str | None, str]
+
+PRINTF_PLACEHOLDER = re.compile(
+    r"%(?!%)(?:\([^)]+\))?[#0 +'\-]*(?:\d+|\*)?(?:\.\d+|\.\*)?"
+    r"(?:hh|h|ll|l|L|z|j|t)?[diouxXeEfFgGcrsa]"
+)
+BRACE_PLACEHOLDER = re.compile(r"(?<!\{)\{[A-Za-z_][A-Za-z0-9_.:-]*\}(?!\})")
+DOLLAR_PLACEHOLDER = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_.:-]*\}")
+MALFORMED_TRANSLATOR_COMMENT = re.compile(r"^#(?=[^\s.,:|~])", re.MULTILINE)
+
+
+def load_catalog(path: Path, *, required: bool = True) -> polib.POFile:
+    """Load a PO/POT file, optionally returning an empty catalog when absent."""
+    if not path.is_file():
+        if required:
+            raise LocaleToolError(f"Required catalog does not exist: {path}")
+        return polib.POFile()
+    try:
+        content = path.read_text(encoding="utf-8")
+        # DSW's v4.32 mail.pot starts with ``#Comment``. GNU gettext accepts it,
+        # while polib correctly expects ``# Comment``. Normalize only this comment
+        # marker in memory and keep the synchronized upstream file byte-for-byte.
+        normalized = MALFORMED_TRANSLATOR_COMMENT.sub("# ", content)
+        return polib.pofile(normalized)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise LocaleToolError(f"Unable to parse catalog {path}: {error}") from error
+
+
+def entry_key(entry: polib.POEntry) -> CatalogKey:
+    """Return the stable gettext identity used for joins."""
+    return entry.msgctxt, entry.msgid
+
+
+def catalog_index(catalog: polib.POFile) -> dict[CatalogKey, polib.POEntry]:
+    """Index non-obsolete entries by context and source string."""
+    return {entry_key(entry): entry for entry in catalog if not entry.obsolete}
+
+
+def entry_is_translated(entry: polib.POEntry | None) -> bool:
+    """Treat fuzzy and empty translations as untranslated."""
+    if entry is None or "fuzzy" in entry.flags:
+        return False
+    if entry.msgid_plural:
+        return bool(entry.msgstr_plural) and all(entry.msgstr_plural.values())
+    return bool(entry.msgstr)
+
+
+def translated_strings(entry: polib.POEntry) -> list[str]:
+    """Return all singular or plural translated strings."""
+    if entry.msgid_plural:
+        return list(entry.msgstr_plural.values())
+    return [entry.msgstr]
+
+
+def source_strings(entry: polib.POEntry) -> list[str]:
+    """Return source strings aligned with singular/plural translations."""
+    if entry.msgid_plural:
+        return [entry.msgid, entry.msgid_plural]
+    return [entry.msgid]
+
+
+def placeholder_counter(text: str) -> Counter[str]:
+    """Extract placeholders whose omission can break a rendered UI string."""
+    placeholders = (
+        PRINTF_PLACEHOLDER.findall(text)
+        + BRACE_PLACEHOLDER.findall(text)
+        + DOLLAR_PLACEHOLDER.findall(text)
+    )
+    return Counter(placeholders)
+
+
+def placeholder_mismatches(entry: polib.POEntry) -> list[dict[str, object]]:
+    """Compare placeholders in an entry's source and translated forms."""
+    sources = source_strings(entry)
+    translations = translated_strings(entry)
+
+    expected_counters: list[Counter[str]]
+    if len(sources) == 2 and len(translations) == 1:
+        # Languages such as zh_Hant have one plural form. DSW's English singular
+        # sometimes hard-codes "1" while its plural uses ``%s``; the one target
+        # form must then be allowed to preserve placeholders from either source.
+        combined = placeholder_counter(sources[0]) | placeholder_counter(sources[1])
+        expected_counters = [combined]
+    elif len(sources) == 1:
+        expected_counters = [placeholder_counter(sources[0])] * len(translations)
+    else:
+        expected_counters = [
+            placeholder_counter(sources[min(index, len(sources) - 1)])
+            for index in range(len(translations))
+        ]
+
+    issues: list[dict[str, object]] = []
+    for expected, translation in zip(expected_counters, translations, strict=True):
+        actual = placeholder_counter(translation)
+        if expected != actual:
+            issues.append(
+                {
+                    "msgid": entry.msgid,
+                    "msgctxt": entry.msgctxt,
+                    "expected": dict(expected),
+                    "actual": dict(actual),
+                }
+            )
+    return issues
+
+
+def merge_catalogs(
+    baseline_path: Path,
+    override_path: Path,
+    extras_path: Path,
+) -> polib.POFile:
+    """Merge baseline, overrides, and local-only extras with local content winning."""
+    result = copy.deepcopy(load_catalog(baseline_path))
+    index = catalog_index(result)
+
+    for overlay_path in (override_path, extras_path):
+        overlay = load_catalog(overlay_path, required=False)
+        for entry in overlay:
+            if entry.obsolete or not entry.msgid:
+                continue
+            replacement = copy.deepcopy(entry)
+            key = entry_key(replacement)
+            existing = index.get(key)
+            if existing is None:
+                result.append(replacement)
+            else:
+                position = result.index(existing)
+                result[position] = replacement
+            index[key] = replacement
+
+    return result
