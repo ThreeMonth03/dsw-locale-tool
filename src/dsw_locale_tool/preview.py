@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 import subprocess
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,11 @@ import yaml
 
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.runtime import (
+    classify_runtime_observations,
+    load_allowed_content,
+    write_runtime_report,
+)
 
 
 class _LiteralDumper(yaml.SafeDumper):
@@ -104,6 +110,97 @@ def _assert_page_available(page: Any, name: str) -> None:
             raise LocaleToolError(f"Cannot capture {name}: {description}: {page.url}")
 
 
+def _collect_visible_text(page: Any, route: str) -> list[dict[str, str]]:
+    """Collect visible text nodes and user-facing attributes without parent duplicates."""
+    records = page.evaluate(
+        r"""
+        () => {
+          const normalize = (value) => value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+          const visible = (element) => {
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return style.display !== "none" && style.visibility !== "hidden" &&
+              style.opacity !== "0" && rect.width > 0 && rect.height > 0 &&
+              !element.closest('[aria-hidden="true"]');
+          };
+          const selector = (element) => {
+            if (element.dataset.cy) {
+              return `[data-cy="${CSS.escape(element.dataset.cy)}"]`;
+            }
+            if (element.id) {
+              return `#${CSS.escape(element.id)}`;
+            }
+            const parts = [];
+            let current = element;
+            while (current && current !== document.body) {
+              let part = current.tagName.toLowerCase();
+              const siblings = current.parentElement
+                ? [...current.parentElement.children].filter(
+                    (item) => item.tagName === current.tagName
+                  )
+                : [];
+              if (siblings.length > 1) {
+                part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+              }
+              parts.unshift(part);
+              current = current.parentElement;
+            }
+            return `body > ${parts.join(" > ")}`;
+          };
+          const records = [];
+          const add = (element, kind, value) => {
+            const text = normalize(value || "");
+            if (text) {
+              records.push({ text, kind, selector: selector(element) });
+            }
+          };
+          for (const element of document.body.querySelectorAll("*")) {
+            if (!visible(element)) continue;
+            for (const node of element.childNodes) {
+              if (node.nodeType === Node.TEXT_NODE) add(element, "text", node.textContent);
+            }
+            for (const attribute of ["placeholder", "aria-label", "title"]) {
+              if (element.hasAttribute(attribute)) {
+                add(element, attribute, element.getAttribute(attribute));
+              }
+            }
+            if (element instanceof HTMLInputElement &&
+                ["button", "submit", "reset"].includes(element.type)) {
+              add(element, "value", element.value);
+            }
+            if (element instanceof HTMLSelectElement && element.selectedOptions.length) {
+              add(element, "selected-option", element.selectedOptions[0].textContent);
+            }
+          }
+          return records;
+        }
+        """
+    )
+    return [
+        {
+            "route": route,
+            "url": page.url,
+            "text": item["text"],
+            "kind": item["kind"],
+            "selector": item["selector"],
+        }
+        for item in records
+    ]
+
+
+def _user_content(user: dict[str, Any]) -> set[str]:
+    values = {
+        value
+        for key in ("firstName", "lastName", "name", "email")
+        if isinstance((value := user.get(key)), str) and value
+    }
+    first_name = user.get("firstName")
+    last_name = user.get("lastName")
+    if isinstance(first_name, str) and isinstance(last_name, str):
+        values.add(f"{first_name} {last_name}")
+    return values
+
+
 def capture_preview(
     *,
     client_url: str,
@@ -111,7 +208,10 @@ def capture_preview(
     email: str,
     password: str,
     output: str | Path,
+    locale_root: str | Path,
     project_uuid: str | None = None,
+    allowed_content_paths: Iterable[str | Path] = (),
+    allowed_text: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Capture public and authenticated pages from a locale-enabled DSW stack."""
     try:
@@ -124,7 +224,7 @@ def capture_preview(
     api = DswApi(api_url)
     api.wait_until_operational(client_url)
     token = api.login(email, password)
-    api.current_user()
+    user = api.current_user()
     api.complete_tours()
     output_path = Path(output)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -146,7 +246,8 @@ def capture_preview(
     if project_uuid:
         routes["questionnaire"] = f"/projects/{project_uuid}"
 
-    report: dict[str, Any] = {"clientUrl": base_url, "screenshots": []}
+    report: dict[str, Any] = {"schema_version": 1, "clientUrl": base_url, "screenshots": []}
+    observations: list[dict[str, str]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
 
@@ -157,6 +258,7 @@ def capture_preview(
         _assert_page_available(public_page, "login")
         login_path = output_path / "login.png"
         public_page.screenshot(path=login_path, full_page=True)
+        observations.extend(_collect_visible_text(public_page, "login"))
         report["screenshots"].append(
             {"name": "login", "url": public_page.url, "file": login_path.name}
         )
@@ -172,11 +274,28 @@ def capture_preview(
             _assert_page_available(page, name)
             screenshot_path = output_path / f"{name}.png"
             page.screenshot(path=screenshot_path, full_page=True)
+            observations.extend(_collect_visible_text(page, name))
             report["screenshots"].append(
                 {"name": name, "url": page.url, "file": screenshot_path.name}
             )
         context.close()
         browser.close()
+
+    allowed = load_allowed_content(
+        allowed_content_paths,
+        set(allowed_text) | _user_content(user),
+    )
+    runtime_report = classify_runtime_observations(
+        observations,
+        locale_root=locale_root,
+        allowed_content=allowed,
+    )
+    runtime_json, runtime_markdown = write_runtime_report(runtime_report, output_path)
+    report["runtime"] = {
+        "counts": runtime_report["counts"],
+        "json": runtime_json.name,
+        "markdown": runtime_markdown.name,
+    }
 
     (output_path / "preview.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",

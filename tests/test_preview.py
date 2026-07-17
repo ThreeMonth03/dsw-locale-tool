@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from dsw_locale_tool.errors import LocaleToolError
-from dsw_locale_tool.preview import _assert_page_available, generate_preview_config
+from dsw_locale_tool.preview import _assert_page_available, _user_content, generate_preview_config
 
 
 class FakeLocator:
@@ -55,3 +55,19 @@ def test_assert_page_available_accepts_normal_page():
 def test_assert_page_available_rejects_not_found_page():
     with pytest.raises(LocaleToolError, match="route was not found"):
         _assert_page_available(FakePage("not-found"), "locales")
+
+
+def test_user_content_includes_display_name_parts():
+    assert _user_content(
+        {
+            "firstName": "Albert",
+            "lastName": "Einstein",
+            "email": "albert@example.test",
+            "role": "admin",
+        }
+    ) == {
+        "Albert",
+        "Einstein",
+        "Albert Einstein",
+        "albert@example.test",
+    }

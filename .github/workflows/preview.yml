@@ -124,11 +124,20 @@ jobs:
           arguments=(
             capture-preview
             --output preview-artifact
+            --locale-root locale
+            --allow-text "Locale Preview"
           )
           if [ -n "$PROJECT_UUID" ]; then
             arguments+=(--project-uuid "$PROJECT_UUID")
           fi
+          if [ -f build/preview.km ]; then
+            arguments+=(--allowed-content-json build/preview.km)
+          fi
           dsw-locale "${arguments[@]}"
+
+      - name: Add runtime findings to job summary
+        if: always() && hashFiles('preview-artifact/runtime.md') != ''
+        run: cat preview-artifact/runtime.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect container logs
         if: always()

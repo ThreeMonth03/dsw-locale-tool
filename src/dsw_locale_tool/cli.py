@@ -152,7 +152,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     capture_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
     capture_parser.add_argument("--output", type=Path, required=True)
+    capture_parser.add_argument("--locale-root", type=Path, required=True)
     capture_parser.add_argument("--project-uuid")
+    capture_parser.add_argument(
+        "--allowed-content-json",
+        action="append",
+        type=Path,
+        default=[],
+        help="JSON whose string values are user or Knowledge Model content",
+    )
+    capture_parser.add_argument(
+        "--allow-text",
+        action="append",
+        default=[],
+        help="Known non-UI text to exclude from runtime findings",
+    )
     return parser
 
 
@@ -301,7 +315,10 @@ def run(arguments: argparse.Namespace) -> int:
             email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
             password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
             output=arguments.output,
+            locale_root=arguments.locale_root,
             project_uuid=arguments.project_uuid,
+            allowed_content_paths=arguments.allowed_content_json,
+            allowed_text=arguments.allow_text,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
