@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
+
+EXTERNAL_ACTION = re.compile(r"^\s*uses:\s+([^@\s]+)@([^\s#]+)", re.MULTILINE)
+EXPECTED_EXTERNAL_ACTIONS = {
+    ("actions/checkout", "v6"),
+    ("actions/configure-pages", "v6"),
+    ("actions/deploy-pages", "v5"),
+    ("actions/setup-node", "v6"),
+    ("actions/setup-python", "v6"),
+    ("actions/upload-artifact", "v7"),
+    ("actions/upload-pages-artifact", "v5"),
+    ("docker/build-push-action", "v7"),
+    ("docker/login-action", "v4"),
+}
 
 
 def test_all_workflows_are_valid_yaml():
@@ -16,14 +30,15 @@ def test_all_workflows_are_valid_yaml():
         )
 
 
-def test_workflows_use_node_24_artifact_action():
+def test_workflows_use_current_external_action_majors():
     workflows = Path(__file__).parents[1] / ".github" / "workflows"
+    actual: set[tuple[str, str]] = set()
 
     for workflow in workflows.glob("*.yml"):
         contents = workflow.read_text(encoding="utf-8")
-        assert "actions/upload-artifact@v4" not in contents
-        if "actions/upload-artifact@" in contents:
-            assert "actions/upload-artifact@v7" in contents
+        actual.update(EXTERNAL_ACTION.findall(contents))
+
+    assert actual == EXPECTED_EXTERNAL_ACTIONS
 
 
 def test_maintained_matrix_is_derived_from_translation_config():

@@ -1,4 +1,4 @@
-"""Catalog compatibility tests."""
+"""Catalog parsing tests."""
 
 from __future__ import annotations
 
