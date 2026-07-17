@@ -43,7 +43,7 @@ def test_allowed_content_loads_all_json_string_values(tmp_path):
 
     allowed = load_allowed_content([content], ["Locale Preview"])
 
-    assert {"Basic KM", "Chapter One", "Locale Preview", "DS Wizard"} <= allowed
+    assert {"Basic KM", "Chapter One", "Locale Preview", "DS Wizard", "Markdown"} <= allowed
 
 
 def test_runtime_scan_distinguishes_catalog_and_runtime_findings(tmp_path):
