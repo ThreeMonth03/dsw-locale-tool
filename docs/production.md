@@ -4,6 +4,18 @@ Production 不需要 fork DSW frontend，也不需架設本地 Weblate。維持�
 `wizard-server`／`wizard-client` images，再加入一個執行完即退出的 locale installer
 service。之後每次發版只更新 installer 的 immutable image tag。
 
+目前四條翻譯線皆有公開 image；Compose 應選擇與 DSW minor line 相同的 tag：
+
+| DSW | Translation branch | Installer image |
+| --- | --- | --- |
+| 4.29 | `sync/v4.29` | `ghcr.io/threemonth03/dsw-locale-installer:4.29.0` |
+| 4.30 | `sync/v4.30` | `ghcr.io/threemonth03/dsw-locale-installer:4.30.0` |
+| 4.31 | `sync/v4.31` | `ghcr.io/threemonth03/dsw-locale-installer:4.31.0` |
+| 4.32 | `sync/v4.32` | `ghcr.io/threemonth03/dsw-locale-installer:4.32.0` |
+
+`maintenance` 版本同樣接受翻譯與發版，不代表 archived。後續補翻會增加 patch version，
+例如 4.30 的下一個 package／image 為 `4.30.1`；既有 tag 永不覆寫。
+
 ## 一次性的 Compose 變更
 
 以下 service 可加入既有 Compose；service 名稱與 server 內部連接埠請依實際檔案調整：
