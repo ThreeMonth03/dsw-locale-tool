@@ -14,7 +14,7 @@ secrets/dsw_locale_api_key
 ```
 
 API key 會繼承帳號權限，因此部署帳號只授予 locale 管理所需角色。Production installer
-只使用 API key；不設定 demo 帳號或密碼 fallback。
+只使用 API key；不設定 demo 帳號或密碼認證。
 
 先檢查合併後的 Compose，再執行 installer：
 
