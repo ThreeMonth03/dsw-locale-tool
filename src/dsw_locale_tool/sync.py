@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -20,6 +21,7 @@ MANAGED_FILES = (
     ("locale.json", "locale.json"),
     ("README.md", "README.md"),
 )
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _run(command: list[str], *, cwd: Path | None = None) -> str:
@@ -91,4 +93,39 @@ def sync_upstream(
         yaml.safe_dump(lock, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
+    return lock
+
+
+def validate_upstream_lock(
+    config: TranslationConfig,
+    version_key: str,
+    repository_root: str | Path,
+) -> dict[str, object]:
+    """Verify that a build uses a committed baseline for the requested release line."""
+    version = config.version(version_key)
+    lock_path = Path(repository_root).resolve() / "upstream" / "upstream.lock.yml"
+    if not lock_path.is_file():
+        raise LocaleToolError(f"Committed upstream lock does not exist: {lock_path}")
+    try:
+        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        raise LocaleToolError(f"Invalid upstream lock {lock_path}: {error}") from error
+    if not isinstance(lock, dict):
+        raise LocaleToolError(f"Upstream lock must be a mapping: {lock_path}")
+
+    expected = {
+        "schema_version": 1,
+        "repository": config.upstream.repository,
+        "ref": version.upstream_ref,
+        "locale": config.upstream.locale,
+        "version": version_key,
+    }
+    for key, expected_value in expected.items():
+        if lock.get(key) != expected_value:
+            raise LocaleToolError(
+                f"Upstream lock {key!r} is {lock.get(key)!r}; expected {expected_value!r}"
+            )
+    commit = lock.get("commit")
+    if not isinstance(commit, str) or not COMMIT_PATTERN.fullmatch(commit):
+        raise LocaleToolError("Upstream lock commit must be a full 40-character Git SHA")
     return lock

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import polib
+import yaml
 
 from dsw_locale_tool.config import TranslationConfig
 
@@ -87,4 +88,18 @@ def make_translation_tree(root: Path) -> None:
     make_catalog(
         root / "upstream" / "mail.po",
         [{"msgid": "Reset password", "msgstr": "重設密碼"}],
+    )
+    (root / "upstream" / "upstream.lock.yml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "repository": "https://example.test/wizard-locales.git",
+                "ref": "v4.32",
+                "commit": "0" * 40,
+                "locale": "zh_Hant",
+                "version": "v4.32",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
     )

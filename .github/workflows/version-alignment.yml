@@ -1,0 +1,66 @@
+name: Check Weblate version alignment
+
+on:
+  workflow_dispatch:
+    inputs:
+      translation_repository:
+        description: Translation content repository
+        required: true
+        default: ThreeMonth03/dsw-ui-locales-zh_Hant
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  alignment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tool
+        uses: actions/checkout@v6
+        with:
+          path: tool
+
+      - name: Check out all translation branches
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository || 'ThreeMonth03/dsw-ui-locales-zh_Hant' }}
+          path: locale
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Install tool
+        run: python -m pip install ./tool
+
+      - name: Compare Weblate, configuration, and branches
+        id: alignment
+        continue-on-error: true
+        run: |
+          dsw-locale version-report \
+            --config locale/translation-config.yml \
+            --repository-root locale \
+            --report-dir reports/versions \
+            --fail-on-drift
+
+      - name: Add report to job summary
+        if: always()
+        run: cat reports/versions/versions.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload version report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsw-version-alignment
+          if-no-files-found: warn
+          path: reports/versions/
+
+      - name: Fail when versions drift
+        if: steps.alignment.outcome == 'failure'
+        run: exit 1

@@ -74,10 +74,6 @@ jobs:
       - name: Build locale package
         run: |
           dsw-locale validate-config locale/translation-config.yml
-          dsw-locale sync-upstream \
-            --config locale/translation-config.yml \
-            --version "${{ inputs.config_version }}" \
-            --output locale
           dsw-locale audit \
             --root locale \
             --report-dir reports \

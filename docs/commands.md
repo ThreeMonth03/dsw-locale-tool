@@ -19,6 +19,21 @@ dsw-locale sync-upstream \
   --output .
 ```
 
+## version-report
+
+把 Weblate 官方版本清單與本地設定、版本 branches 比較：
+
+```console
+dsw-locale version-report \
+  --config translation-config.yml \
+  --repository-root . \
+  --report-dir reports/versions \
+  --fail-on-drift
+```
+
+Weblate locked project 應設定為 `maintenance`，未鎖定 project 應為 `active`。此指令只送出
+一次 projects API request，並輸出 JSON 與 Markdown 報告。
+
 ## audit
 
 同時輸出 `audit.json` 與便於 PR 閱讀的 `audit.md`：

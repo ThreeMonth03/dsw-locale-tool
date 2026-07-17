@@ -10,6 +10,7 @@ from pathlib import Path
 from dsw_locale_tool.catalog import merge_catalogs
 from dsw_locale_tool.config import TranslationConfig
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.sync import validate_upstream_lock
 
 COMPONENTS = ("wizard", "mail")
 PACKAGER = "@ds-wizard/locale-packager@0.3.0"
@@ -27,6 +28,7 @@ def build_source(
     version = config.version(version_key)
     repository_root = Path(root).resolve()
     output_path = Path(output).resolve()
+    validate_upstream_lock(config, version_key, repository_root)
 
     if output_path.exists() and not output_path.is_dir():
         raise LocaleToolError(f"Output path exists and is not a directory: {output_path}")
