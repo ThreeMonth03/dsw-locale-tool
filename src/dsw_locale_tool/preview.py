@@ -90,21 +90,32 @@ def generate_preview_config(output: str | Path, *, client_url: str) -> Path:
 
 
 def _wait_for_application(page: Any) -> None:
-    """Wait for the SPA loader without depending on network-idle WebSockets."""
-    for selector in (".full-page-loader", ".page-loader"):
-        try:
-            page.locator(selector).wait_for(state="detached", timeout=30_000)
-        except Exception:  # Playwright timeout types are optional at import time.
-            page.wait_for_timeout(2_000)
+    """Wait until Elm has mounted and the active page has finished loading."""
+    try:
+        page.locator("body > :not(script)").first.wait_for(state="visible", timeout=30_000)
+        for selector in (".full-page-loader", ".page-loader"):
+            page.locator(selector).first.wait_for(state="hidden", timeout=30_000)
+    except Exception as error:  # Playwright timeout types are optional at import time.
+        raise LocaleToolError(f"DSW browser UI did not become ready: {page.url}") from error
 
 
-def _assert_page_available(page: Any, name: str) -> None:
-    """Fail the workflow when a screenshot would capture a DSW error page."""
+def _wait_for_page_available(page: Any, name: str) -> None:
+    """Wait for initial routing, then reject a stable DSW error page."""
     markers = {
         "not-found": "route was not found",
         "not-allowed": "preview account is not allowed to view the route",
         "error": "DSW rendered a full-page error",
     }
+    not_found = page.locator('[data-cy="illustrated-message_not-found"]')
+    if not_found.is_visible():
+        try:
+            not_found.wait_for(state="hidden", timeout=30_000)
+        except Exception as error:  # Playwright timeout types are optional at import time.
+            raise LocaleToolError(
+                f"Cannot capture {name}: route was not found: {page.url}"
+            ) from error
+        _wait_for_application(page)
+
     for marker, description in markers.items():
         if page.locator(f'[data-cy="illustrated-message_{marker}"]').is_visible():
             raise LocaleToolError(f"Cannot capture {name}: {description}: {page.url}")
@@ -255,7 +266,7 @@ def capture_preview(
         public_page = public_context.new_page()
         public_page.goto(f"{base_url}/login", wait_until="domcontentloaded", timeout=60_000)
         _wait_for_application(public_page)
-        _assert_page_available(public_page, "login")
+        _wait_for_page_available(public_page, "login")
         login_path = output_path / "login.png"
         public_page.screenshot(path=login_path, full_page=True)
         observations.extend(_collect_visible_text(public_page, "login"))
@@ -271,7 +282,7 @@ def capture_preview(
         for name, route in routes.items():
             page.goto(f"{base_url}{route}", wait_until="domcontentloaded", timeout=60_000)
             _wait_for_application(page)
-            _assert_page_available(page, name)
+            _wait_for_page_available(page, name)
             screenshot_path = output_path / f"{name}.png"
             page.screenshot(path=screenshot_path, full_page=True)
             observations.extend(_collect_visible_text(page, name))
