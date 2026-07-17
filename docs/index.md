@@ -9,6 +9,7 @@ CI 產生可檢查的真實 DSW 畫面與可部署的 locale installer。
 
 - **發現英文或翻譯不自然**：閱讀 {doc}`translators`。
 - **想看翻譯套進 DSW 的結果**：閱讀 {doc}`preview`。
+- **想知道維護哪些 DSW 版本**：閱讀 {doc}`versions`。
 - **負責同步、分類或發版**：閱讀 {doc}`maintainers`。
 - **負責 production Compose**：閱讀 {doc}`production`。
 :::
@@ -20,6 +21,7 @@ CI 產生可檢查的真實 DSW 畫面與可部署的 locale installer。
 architecture
 translators
 preview
+versions
 maintainers
 production
 commands

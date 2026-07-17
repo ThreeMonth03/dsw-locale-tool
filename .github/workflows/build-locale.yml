@@ -50,13 +50,9 @@ jobs:
       - name: Install tool
         run: python -m pip install ./tool
 
-      - name: Validate and refresh official baseline
+      - name: Validate committed official baseline
         run: |
           dsw-locale validate-config locale/translation-config.yml
-          dsw-locale sync-upstream \
-            --config locale/translation-config.yml \
-            --version "${{ inputs.dsw_version }}" \
-            --output locale
 
       - name: Audit locale overlays
         run: |

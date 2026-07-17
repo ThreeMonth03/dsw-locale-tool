@@ -17,6 +17,12 @@ from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.sync import sync_upstream
+from dsw_locale_tool.versions import (
+    available_git_branches,
+    build_version_report,
+    fetch_weblate_versions,
+    write_version_report,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,6 +37,18 @@ def build_parser() -> argparse.ArgumentParser:
         "validate-config", help="Validate translation-config.yml"
     )
     validate_parser.add_argument("config", type=Path)
+
+    versions_parser = subparsers.add_parser(
+        "version-report", help="Compare configured versions and branches with official Weblate"
+    )
+    versions_parser.add_argument("--config", type=Path, required=True)
+    versions_parser.add_argument(
+        "--repository-root",
+        type=Path,
+        help="Translation checkout used to verify sync/vX.Y branches",
+    )
+    versions_parser.add_argument("--report-dir", type=Path, default=Path("reports/versions"))
+    versions_parser.add_argument("--fail-on-drift", action="store_true")
 
     sync_parser = subparsers.add_parser(
         "sync-upstream", help="Refresh the immutable official locale baseline"
@@ -142,6 +160,23 @@ def run(arguments: argparse.Namespace) -> int:
                 ensure_ascii=False,
             )
         )
+        return 0
+
+    if arguments.command == "version-report":
+        config = load_config(arguments.config)
+        branch_refs = (
+            available_git_branches(arguments.repository_root) if arguments.repository_root else None
+        )
+        report = build_version_report(
+            config,
+            fetch_weblate_versions(config),
+            branch_refs=branch_refs,
+        )
+        json_path, markdown_path = write_version_report(report, arguments.report_dir)
+        print(f"Wrote {json_path} and {markdown_path}")
+        if arguments.fail_on_drift and not report["aligned"]:
+            print("Version alignment drift detected", file=sys.stderr)
+            return 2
         return 0
 
     if arguments.command == "sync-upstream":

@@ -42,6 +42,16 @@ class UpstreamConfig(StrictModel):
     locale: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
 
 
+class WeblateConfig(StrictModel):
+    """Official Weblate project catalog used as the supported-version source."""
+
+    projects_url: str = Field(
+        default="https://localize.ds-wizard.org/api/projects/",
+        min_length=1,
+        pattern=r"^https://",
+    )
+
+
 class VersionConfig(StrictModel):
     """One supported DSW minor release line."""
 
@@ -72,6 +82,7 @@ class TranslationConfig(StrictModel):
     schema_version: Literal[1]
     locale: LocaleMetadata
     upstream: UpstreamConfig
+    weblate: WeblateConfig = WeblateConfig()
     branches: BranchConfig = BranchConfig()
     versions: dict[str, VersionConfig]
 

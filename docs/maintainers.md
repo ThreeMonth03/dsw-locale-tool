@@ -25,6 +25,9 @@ dsw-locale sync-upstream \
 dsw-locale audit --root . --report-dir reports
 ```
 
+同步產生的 `upstream/` 與 `upstream.lock.yml` 必須一起 review、commit。Preview、package
+及 publish 不會自行重新同步，避免同一個翻譯 commit 在不同時間使用不同 baseline。
+
 優先檢查：
 
 - `extras_now_upstream`：字串已進官方 POT，應移出 `extras`。
@@ -34,6 +37,8 @@ dsw-locale audit --root . --report-dir reports
 
 ## 版本規則
 
+- 維護版本以 Weblate projects 清單為準，不取決於目前 production 使用哪一版。
+- Weblate unlocked 對應 `active`；locked 對應 `maintenance`，兩者都維持可同步與可發版。
 - 一個 DSW minor line 對應一個 `sync/vX.Y` branch。
 - `upstream_ref` 鎖定相同 minor line；`upstream.lock.yml` 記錄實際 commit SHA。
 - 每個對外發布的 locale package 必須有新的 `locale_version`；相同 coordinate 的 installer
@@ -47,8 +52,8 @@ dsw-locale audit --root . --report-dir reports
 ## 發布
 
 Preview 通過後，到 **Actions → Publish locale installer image**，使用已確認的 commit SHA
-與 immutable `image_tag`。Workflow 會重新同步、audit、打包，並同時發佈 GHCR image 與
-ZIP/audit artifacts。production 不應使用浮動的 `latest` tag。
+與 immutable `image_tag`。Workflow 會驗證 committed baseline、audit、打包，並同時發佈
+GHCR image 與 ZIP/audit artifacts。production 不應使用浮動的 `latest` tag。
 
 ## GitHub Pages 首次啟用
 

@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 
 import polib
+import pytest
 
 from dsw_locale_tool.build import build_source
+from dsw_locale_tool.errors import LocaleToolError
 from tests.conftest import make_config, make_translation_tree
 
 
@@ -33,3 +35,13 @@ def test_build_source_merges_layers_and_rewrites_metadata(tmp_path):
         "license": "CC-BY-4.0",
     }
     assert (output / "README.md").read_text(encoding="utf-8") == "# Locale\n"
+
+
+def test_build_source_rejects_baseline_from_another_version(tmp_path):
+    repository = tmp_path / "repository"
+    make_translation_tree(repository)
+    lock = repository / "upstream" / "upstream.lock.yml"
+    lock.write_text(lock.read_text(encoding="utf-8").replace("v4.32", "v4.31"), encoding="utf-8")
+
+    with pytest.raises(LocaleToolError, match="expected 'v4.32'"):
+        build_source(make_config(), "v4.32", repository, tmp_path / "build")
