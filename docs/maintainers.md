@@ -53,7 +53,9 @@ dsw-locale propagate \
    run.
 
 The publisher creates an immutable GHCR image tag from `locale.json.version`. Existing tags are not
-overwritten.
+overwritten. Before a new tag is pushed, the workflow starts the configured DSW release and runs the
+installer three times: a fresh install, an idempotent repeat, and another repeat after the DSW server
+restarts. The image is published only when all three checks succeed.
 
 ## Add runtime-only text
 

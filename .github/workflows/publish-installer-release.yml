@@ -53,6 +53,7 @@ jobs:
             --version "$CONFIG_VERSION" > release.json
           owner=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           tag=$(jq --raw-output .locale_version release.json)
+          dsw_version=$(jq --raw-output .recommended_app_version release.json)
           name="ghcr.io/$owner/dsw-locale-installer"
           revision=$(git -C locale rev-parse HEAD)
           {
@@ -60,6 +61,7 @@ jobs:
             echo "tag=$tag"
             echo "reference=$name:$tag"
             echo "revision=$revision"
+            echo "dsw_version=$dsw_version"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
@@ -114,13 +116,13 @@ jobs:
             --source tool/build/locale \
             --output tool/dist/locale.zip
 
-      - name: Build and publish installer
+      - name: Build installer
         if: steps.tag.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: tool
           file: tool/docker/installer/Dockerfile
-          push: true
+          load: true
           build-args: LOCALE_BUNDLE=dist/locale.zip
           tags: ${{ steps.image.outputs.reference }}
           labels: |
@@ -128,8 +130,85 @@ jobs:
             org.opencontainers.image.revision=${{ steps.image.outputs.revision }}
             org.opencontainers.image.version=${{ steps.image.outputs.tag }}
 
-      - name: Upload new package and audit
+      - name: Start disposable DSW for installer smoke test
         if: steps.tag.outputs.publish == 'true'
+        env:
+          DSW_VERSION: ${{ steps.image.outputs.dsw_version }}
+        run: |
+          dsw-locale preview-config \
+            --output tool/preview/runtime/application.yml \
+            --client-url http://localhost:8080/wizard
+          docker compose \
+            --project-name dsw-locale-installer-smoke \
+            --file tool/preview/docker-compose.yml \
+            up --detach
+
+      - name: Smoke test installer image
+        if: steps.tag.outputs.publish == 'true'
+        env:
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+        run: |
+          run_installer() {
+            docker run --rm \
+              --network dsw-locale-installer-smoke_default \
+              --read-only \
+              --tmpfs /tmp:size=16m,mode=1777 \
+              --cap-drop ALL \
+              --security-opt no-new-privileges:true \
+              --env DSW_API_URL=http://server:3000/wizard-api \
+              --env DSW_ADMIN_EMAIL=albert.einstein@example.com \
+              --env DSW_ADMIN_PASSWORD=password \
+              "$IMAGE_REFERENCE"
+          }
+
+          first=$(run_installer)
+          echo "$first"
+          jq --exit-status \
+            '.created == true and .enabled == true and .defaultLocale == true' \
+            <<< "$first"
+
+          second=$(run_installer)
+          echo "$second"
+          jq --exit-status \
+            '.created == false and .enabled == true and .defaultLocale == true' \
+            <<< "$second"
+
+          docker compose \
+            --project-name dsw-locale-installer-smoke \
+            --file tool/preview/docker-compose.yml \
+            restart server
+
+          after_restart=$(run_installer)
+          echo "$after_restart"
+          jq --exit-status \
+            '.created == false and .enabled == true and .defaultLocale == true' \
+            <<< "$after_restart"
+
+      - name: Collect installer smoke logs
+        if: always() && steps.tag.outputs.publish == 'true'
+        run: |
+          mkdir -p reports/installer-smoke
+          docker compose \
+            --project-name dsw-locale-installer-smoke \
+            --file tool/preview/docker-compose.yml \
+            logs --no-color > reports/installer-smoke/docker-compose.log 2>&1 || true
+
+      - name: Stop disposable DSW
+        if: always() && steps.tag.outputs.publish == 'true'
+        run: |
+          docker compose \
+            --project-name dsw-locale-installer-smoke \
+            --file tool/preview/docker-compose.yml \
+            down --volumes --remove-orphans
+
+      - name: Publish installer
+        if: steps.tag.outputs.publish == 'true'
+        env:
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+        run: docker push "$IMAGE_REFERENCE"
+
+      - name: Upload new package and audit
+        if: always() && steps.tag.outputs.publish == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: dsw-locale-installer-${{ steps.image.outputs.tag }}
@@ -137,3 +216,4 @@ jobs:
             tool/dist/locale.zip
             reports/audit.json
             reports/audit.md
+            reports/installer-smoke/

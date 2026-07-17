@@ -35,7 +35,9 @@ messages.
 
 After validation succeeds, CI renders every non-draft translation pull request in a disposable DSW
 installation. A bot comment links to the run. Open its preview artifact to inspect screenshots and
-the runtime English-text report. The preview does not connect to production data.
+the runtime English-text report. The screenshots include project settings, sharing, comments, and
+the project deletion confirmation, in addition to the main pages. The preview does not connect to
+production data.
 
 When the pull request is merged, completed translations are copied into matching blank forms on the
 other maintained release branches. This happens only when the complete source identity is unchanged;

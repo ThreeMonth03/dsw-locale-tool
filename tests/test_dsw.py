@@ -104,6 +104,36 @@ def test_wait_until_operational_retries_housekeeping(monkeypatch):
     assert session.calls[0][2]["params"]["clientUrl"] == "http://localhost:8080/wizard"
 
 
+def test_complete_tours_is_idempotent():
+    existing = FakeResponse(
+        {"error": {"code": "error.database.unique_constraint_violation"}},
+        status_code=400,
+        text="already exists",
+    )
+    session = FakeSession([existing, *[FakeResponse() for _ in range(5)]])
+    api = DswApi("http://localhost:3000/wizard-api", session=session)
+
+    api.complete_tours()
+
+    assert len(session.calls) == 6
+
+
+def test_complete_tours_rejects_unexpected_api_errors():
+    session = FakeSession(
+        [
+            FakeResponse(
+                {"error": {"code": "error.validation"}},
+                status_code=400,
+                text="invalid tour",
+            )
+        ]
+    )
+    api = DswApi("http://localhost:3000/wizard-api", session=session)
+
+    with pytest.raises(LocaleToolError, match="invalid tour"):
+        api.complete_tours()
+
+
 def test_install_locale_imports_and_enables_new_coordinate(tmp_path):
     bundle = tmp_path / "locale.zip"
     make_bundle(bundle)
