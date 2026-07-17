@@ -4,7 +4,14 @@ Preview workflow 會在 GitHub-hosted runner 建立一次性的 PostgreSQL、Min
 `wizard-server` 與 `wizard-client`，匯入本次 locale package，再用瀏覽器擷取畫面。完成後
 整組 containers 與 volumes 都會刪除。
 
-## 執行方式
+## 所有維護版本
+
+**Actions → Preview maintained DSW releases** 每週自動執行，也可以手動觸發。Workflow
+從 translation repo `main` 的 `translation-config.yml` 產生 matrix；目前會平行驗證
+v4.29–v4.32。`reconcile-versions` 新增 release line 後，下一次執行會自動包含該版本，
+不必修改 workflow YAML。
+
+## 單一版本或 PR
 
 到 tool repo 的 **Actions → Render DSW locale preview → Run workflow**，填入：
 

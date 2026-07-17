@@ -63,6 +63,17 @@ dsw-locale reconcile-versions \
 此指令不刪除 Weblate 已不列出的版本，也不建立 Git branch；它只產生可驗證的
 control-plane config 與 maintenance plan。Branch 與 baseline 由 reusable workflow 處理。
 
+## preview-matrix
+
+從同一份設定輸出所有 `active` 與 `maintenance` release lines 的 CI matrix：
+
+```console
+dsw-locale preview-matrix --config translation-config.yml
+```
+
+輸出是單行 JSON；`retired` 版本不進入 preview。Branch 名稱與 DSW image minor tag 都由
+version key 和 branch policy 推導，不在 workflow 另維護清單。
+
 ## audit
 
 同時輸出 `audit.json` 與便於 PR 閱讀的 `audit.md`：
