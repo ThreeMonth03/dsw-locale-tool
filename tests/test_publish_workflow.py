@@ -15,6 +15,10 @@ def test_publisher_is_scheduled_and_never_overwrites_a_tag():
     assert "description: Version branch, tag, or commit" not in publisher
     assert "description: Key in translation-config.yml" not in publisher
     assert "dsw-locale release-info" in release
+    assert "docker/login-action@v4" in release
+    assert "docker/build-push-action@v7" in release
+    assert "docker/login-action@v3" not in release
+    assert "docker/build-push-action@v6" not in release
     assert 'docker buildx imagetools inspect "$IMAGE_REFERENCE"' in release
     assert 'echo "publish=false"' in release
     assert "if: steps.tag.outputs.publish == 'true'" in release

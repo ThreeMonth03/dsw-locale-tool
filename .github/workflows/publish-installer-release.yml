@@ -63,7 +63,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -116,7 +116,7 @@ jobs:
 
       - name: Build and publish installer
         if: steps.tag.outputs.publish == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: tool
           file: tool/docker/installer/Dockerfile
