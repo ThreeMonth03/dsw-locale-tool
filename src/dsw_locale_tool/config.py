@@ -50,6 +50,11 @@ class WeblateConfig(StrictModel):
         min_length=1,
         pattern=r"^https://",
     )
+    public_projects_url: str = Field(
+        default="https://localize.ds-wizard.org/projects/",
+        min_length=1,
+        pattern=r"^https://",
+    )
 
 
 class VersionConfig(StrictModel):

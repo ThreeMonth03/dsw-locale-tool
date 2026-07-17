@@ -18,15 +18,17 @@ project，都是本 repo 應維護的 minor line，並對應一個 `sync/vX.Y` b
 
 ## 自動偵測版本漂移
 
-`Check Weblate version alignment` workflow 每週與手動執行時只送出一次 Weblate projects
-API request，然後比較：
+`Check Weblate version alignment` workflow 每週與手動執行時先送出一次 Weblate projects
+API request；若 API 遇到 rate limit、逾時或其他 HTTP 錯誤，則改讀同一官方 Projects
+公開頁面的版本與 lock 圖示。之後比較：
 
 1. Weblate 列出的 DSW minor lines。
 2. `translation-config.yml` 的版本與 lifecycle state。
 3. Git 中是否有對應的 `sync/vX.Y` branch。
 
 若少了設定、branch，或 locked 狀態與本地 state 不一致，workflow 會失敗並留下 Markdown
-及 JSON artifacts。維護者也可在翻譯 repo checkout 中執行：
+及 JSON artifacts；若兩種官方來源都無法讀取，artifact 與 job summary 會保留原始錯誤。
+維護者也可在翻譯 repo checkout 中執行：
 
 ```console
 dsw-locale version-report \
