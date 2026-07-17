@@ -25,7 +25,8 @@ MARKDOWN_MARKER_PATTERN = re.compile(r"[*_`~#]+")
 IDENTIFIER_PATTERN = re.compile(
     r"^(?:https?://|[\w.+-]+@[\w.-]+\.|[0-9a-f]{8}-[0-9a-f-]{27}|"
     r"v?\d+(?:\.\d+)+|[a-z]{2,3}(?:[-_][A-Za-z0-9]+)+$|"
-    r"[A-Za-z0-9_-]+(?::[A-Za-z0-9_.-]+){2,}$)",
+    r"[A-Za-z0-9_~-]+(?::[A-Za-z0-9_.-]+){2,}$|"
+    r"[a-z0-9_.-]+/[a-z0-9_.-]+$)",
     re.IGNORECASE,
 )
 

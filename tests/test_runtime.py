@@ -30,6 +30,8 @@ def test_english_candidate_rejects_chinese_identifiers_and_urls():
     assert is_english_candidate("4.32.0") is False
     assert is_english_candidate("zh-hant") is False
     assert is_english_candidate("depositar:zh_Hant:4.32.0") is False
+    assert is_english_candidate("~:default:1.0.0") is False
+    assert is_english_candidate("ds-wizard/ds-wizard") is False
 
 
 def test_allowed_content_loads_all_json_string_values(tmp_path):
