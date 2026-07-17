@@ -38,6 +38,7 @@ BUILTIN_ALLOWED_TEXT = {
     "Data Stewardship Wizard",
     "Default English locale for Wizard UI",
     "English",
+    "Markdown",
     "OpenID",
     "ORCID",
     "URL",
