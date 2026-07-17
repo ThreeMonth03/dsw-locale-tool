@@ -1,0 +1,139 @@
+name: Publish one locale installer
+
+on:
+  workflow_call:
+    inputs:
+      translation_repository:
+        required: true
+        type: string
+      translation_ref:
+        required: true
+        type: string
+      config_version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tool
+        uses: actions/checkout@v6
+        with:
+          path: tool
+
+      - name: Check out translation content
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.translation_ref }}
+          path: locale
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tool/pyproject.toml
+
+      - name: Install tool
+        run: python -m pip install ./tool
+
+      - name: Resolve immutable image coordinates
+        id: image
+        env:
+          CONFIG_VERSION: ${{ inputs.config_version }}
+        run: |
+          dsw-locale release-info \
+            --config locale/translation-config.yml \
+            --version "$CONFIG_VERSION" > release.json
+          owner=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          tag=$(jq --raw-output .locale_version release.json)
+          name="ghcr.io/$owner/dsw-locale-installer"
+          revision=$(git -C locale rev-parse HEAD)
+          {
+            echo "name=$name"
+            echo "tag=$tag"
+            echo "reference=$name:$tag"
+            echo "revision=$revision"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check immutable tag
+        id: tag
+        env:
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+        run: |
+          set +e
+          inspection=$(docker buildx imagetools inspect "$IMAGE_REFERENCE" 2>&1)
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Existing immutable image: $IMAGE_REFERENCE" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ "$inspection" != *": not found"* && "$inspection" != *"manifest unknown"* ]]; then
+            echo "Unable to inspect $IMAGE_REFERENCE:" >&2
+            echo "$inspection" >&2
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.tag.outputs.publish == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+
+      - name: Build verified locale package
+        if: steps.tag.outputs.publish == 'true'
+        run: |
+          dsw-locale validate-config locale/translation-config.yml
+          dsw-locale audit \
+            --root locale \
+            --report-dir reports \
+            --fail-on placeholders \
+            --fail-on structure
+          dsw-locale build-source \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.config_version }}" \
+            --root locale \
+            --output tool/build/locale
+          dsw-locale package \
+            --source tool/build/locale \
+            --output tool/dist/locale.zip
+
+      - name: Build and publish installer
+        if: steps.tag.outputs.publish == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: tool
+          file: tool/docker/installer/Dockerfile
+          push: true
+          build-args: LOCALE_BUNDLE=dist/locale.zip
+          tags: ${{ steps.image.outputs.reference }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ inputs.translation_repository }}
+            org.opencontainers.image.revision=${{ steps.image.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.image.outputs.tag }}
+
+      - name: Upload new package and audit
+        if: steps.tag.outputs.publish == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dsw-locale-installer-${{ steps.image.outputs.tag }}
+          path: |
+            tool/dist/locale.zip
+            reports/audit.json
+            reports/audit.md

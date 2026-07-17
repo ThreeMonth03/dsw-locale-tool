@@ -1,71 +1,56 @@
 # Production 部署
 
-Production 不需要 fork DSW frontend，也不需架設本地 Weblate。維持官方
-`wizard-server`／`wizard-client` images，再加入一個執行完即退出的 locale installer
-service。之後每次發版只更新 installer 的 immutable image tag。
+Production 繼續使用官方 `wizard-server` 與 `wizard-client` images。補翻內容由一次性
+`locale-installer` 經 DSW API 匯入，不 fork frontend，也不掛載 PO 檔。
 
-目前四條翻譯線皆有公開 image；Compose 應選擇與 DSW minor line 相同的 tag：
+## 初次加入
 
-| DSW | Translation branch | Installer image |
-| --- | --- | --- |
-| 4.29 | `sync/v4.29` | `ghcr.io/threemonth03/dsw-locale-installer:4.29.0` |
-| 4.30 | `sync/v4.30` | `ghcr.io/threemonth03/dsw-locale-installer:4.30.0` |
-| 4.31 | `sync/v4.31` | `ghcr.io/threemonth03/dsw-locale-installer:4.31.0` |
-| 4.32 | `sync/v4.32` | `ghcr.io/threemonth03/dsw-locale-installer:4.32.0` |
+將 [`production/compose.locale.yml`](https://github.com/ThreeMonth03/dsw-locale-tool/blob/main/production/compose.locale.yml)
+複製到 `dsw-deployment` 根目錄。這份 fragment 已對齊 `depositar-prod` 的 `server` service
+與內部 `3000` port。建立專用 DSW 部署帳號及 API key，將 key 寫入不進 Git 的檔案：
 
-`maintenance` 版本同樣接受翻譯與發版，不代表 archived。後續補翻會增加 patch version，
-例如 4.30 的下一個 package／image 為 `4.30.1`；既有 tag 永不覆寫。
-
-## 一次性的 Compose 變更
-
-以下 service 可加入既有 Compose；service 名稱與 server 內部連接埠請依實際檔案調整：
-
-```yaml
-services:
-  locale-installer:
-    image: ghcr.io/threemonth03/dsw-locale-installer:4.32.0
-    restart: "no"
-    depends_on:
-      wizard-server:
-        condition: service_started
-    environment:
-      DSW_API_URL: http://wizard-server:3000/wizard-api
-      DSW_API_KEY_FILE: /run/secrets/dsw_locale_api_key
-    secrets:
-      - dsw_locale_api_key
-
-secrets:
-  dsw_locale_api_key:
-    file: ./secrets/dsw_locale_api_key
+```text
+secrets/dsw_locale_api_key
 ```
 
-建議為 installer 建立專用部署帳號，再由該帳號建立有到期日的 DSW API key。DSW 4.32
-的 API key 會繼承所屬使用者權限，key 本身沒有細部 scope，因此帳號只給目前版本能完成
-locale 管理所需的最低角色。不要使用 preview 的 demo 帳號；若環境暫時無法建立 API
-key，才以 `DSW_ADMIN_EMAIL` 與 `DSW_ADMIN_PASSWORD` 作為過渡方案。
+API key 會繼承帳號權限，因此部署帳號只授予 locale 管理所需角色。Production installer
+只使用 API key；不設定 demo 帳號或密碼 fallback。
 
-## 更新語系
+先檢查合併後的 Compose，再執行 installer：
 
-1. 發布新 `locale_version` 與同號 installer image，例如 `4.32.1`。
-2. 修改 Compose 中 `locale-installer.image` 的 tag。
-3. 拉取並執行一次：
+```console
+docker compose -f docker-compose.yml -f compose.locale.yml config --quiet
+docker compose -f docker-compose.yml -f compose.locale.yml pull locale-installer
+docker compose -f docker-compose.yml -f compose.locale.yml up locale-installer
+```
 
-   ```console
-   docker compose pull locale-installer
-   docker compose up locale-installer
-   ```
+Installer 會自行等待 server ready，匯入 image 內的 locale ZIP、啟用該版本並設為預設；
+成功後 exit code 為 0。它以非 root 使用者執行，root filesystem 為唯讀，沒有 Linux
+capabilities，且只能讀取 Compose secret。Fragment 與現有 `depositar-prod` server 一樣
+明確使用 `linux/amd64`。
 
-Installer 會等待 server、尋找同一 `organizationId:localeId:version`、必要時匯入 ZIP，最後
-啟用並設為預設語系。重跑同一版本不會重複 POST package；若翻譯內容有變，必須升
-`locale_version`，不能只重建相同 tag。
+## 更新補翻
+
+目前可直接使用的 immutable tags：
+
+| DSW line | Installer image |
+| --- | --- |
+| 4.29 | `ghcr.io/threemonth03/dsw-locale-installer:4.29.0` |
+| 4.30 | `ghcr.io/threemonth03/dsw-locale-installer:4.30.0` |
+| 4.31 | `ghcr.io/threemonth03/dsw-locale-installer:4.31.0` |
+| 4.32 | `ghcr.io/threemonth03/dsw-locale-installer:4.32.0` |
+
+後續翻譯 release 只需要修改 `compose.locale.yml` 的 `image:` 一行，例如由 `4.32.0`
+改成 `4.32.1`，再重跑上面的 pull 與 up。Tag 不覆寫；同一 locale coordinate 重跑時，
+installer 會直接啟用既有版本，不重複匯入。
+
+Tool repo 每日從 `translation-config.yml` 動態列出所有 `active` 與 `maintenance` branches，
+並發布尚不存在的 tags。新 Weblate release line 經 maintenance 建 branch 後會自動加入；
+翻譯尚未準備發版時可先累積，準備發布時提高該 branch 的 `locale_version`。
 
 ## 驗證與回復
 
-- 確認 installer exit code 為 0，輸出含 `enabled: true` 與 `defaultLocale: true`。
-- 用無痕視窗重新開啟 DSW，避免舊 session／locale cache 影響判斷。
-- 保留上一版 immutable image tag。需要回復時，將上一版 locale 重新設為 default；
-  installer 不會刪除其他 locale。
-- GHCR repo 搬到 depositar 後只需改 image owner；翻譯內容與 tool history 可照常移轉。
-
-若 production 的 GHCR package 是 private，需先讓 Docker 對 `ghcr.io` 登入，或將該
-package 設為 public。API key 應放在不進 Git 的 secret file，並定期輪替。
+- Installer 輸出應包含 `enabled: true` 與 `defaultLocale: true`。
+- 用無痕視窗重開 DSW，避免舊 session 的 locale cache。
+- 回復時把 `image:` 改回上一個 immutable tag，再執行 installer；流程不刪除其他 locale。
+- GHCR package 目前可匿名 pull；未來移到 depositar 後，只需更換同一行的 image owner。
