@@ -21,6 +21,13 @@ on:
       pull_request_number:
         type: number
         required: true
+    outputs:
+      config_version:
+        value: ${{ jobs.validate.outputs.config_version }}
+      dsw_image_tag:
+        value: ${{ jobs.validate.outputs.dsw_image_tag }}
+      translation_changed:
+        value: ${{ jobs.validate.outputs.translation_changed }}
 
 permissions:
   contents: read
@@ -28,6 +35,10 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      config_version: ${{ steps.target.outputs.config_version }}
+      dsw_image_tag: ${{ steps.target.outputs.dsw_image_tag }}
+      translation_changed: ${{ steps.scope.outputs.translation_changed }}
     steps:
       - name: Check out trusted locale tool
         uses: actions/checkout@v6
@@ -72,14 +83,20 @@ jobs:
         id: target
         env:
           BASE_REF: ${{ inputs.base_ref }}
-        run: echo "version=${BASE_REF#sync/}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "config_version=${BASE_REF#sync/}" >> "$GITHUB_OUTPUT"
+          echo "dsw_image_tag=${BASE_REF#sync/v}" >> "$GITHUB_OUTPUT"
 
       - name: Validate PR scope
+        id: scope
         run: |
-          dsw-locale validate-pr \
+          report=$(dsw-locale validate-pr \
             --base-root base \
             --head-root locale \
-            --branch "${{ inputs.base_ref }}"
+            --branch "${{ inputs.base_ref }}")
+          echo "$report"
+          echo "translation_changed=$(jq --raw-output '.translation_changed' <<< "$report")" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Audit locale
         run: |
@@ -93,7 +110,7 @@ jobs:
         run: |
           dsw-locale build-source \
             --config locale/translation-config.yml \
-            --version "${{ steps.target.outputs.version }}" \
+            --version "${{ steps.target.outputs.config_version }}" \
             --root locale \
             --output build/locale
 

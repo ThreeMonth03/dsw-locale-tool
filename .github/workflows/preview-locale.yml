@@ -37,7 +37,10 @@ jobs:
       - name: Check out tool
         uses: actions/checkout@v6
         with:
+          repository: ThreeMonth03/dsw-locale-tool
+          ref: main
           path: tool
+          persist-credentials: false
 
       - name: Check out translation content
         uses: actions/checkout@v6
@@ -45,6 +48,7 @@ jobs:
           repository: ${{ inputs.translation_repository }}
           ref: ${{ inputs.translation_ref }}
           path: locale
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6

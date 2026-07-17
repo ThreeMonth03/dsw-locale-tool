@@ -26,6 +26,22 @@ identical to official translations.
 An audit may report missing translations without failing: those entries are the work queue.
 Structure and placeholder findings must be resolved before packaging.
 
+## Cross-version propagation
+
+Merging a translation pull request starts exact propagation for every other maintained release
+branch. CI fills a target only when the form already exists, is blank, and has the same component,
+source, plural source, context, and form kind. Each changed target is audited, built, and packaged
+before CI commits it. A concurrent branch update causes the push to fail instead of being overwritten.
+
+To inspect the same operation locally:
+
+```console
+dsw-locale propagate \
+  --source-root ../source-release \
+  --target-root ../target-release \
+  --report-dir reports/propagation
+```
+
 ## Prepare a translation release
 
 1. Confirm that the translation PR targets the correct `sync/vX.Y` branch.

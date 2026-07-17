@@ -46,13 +46,27 @@ def test_maintained_matrix_is_derived_from_translation_config():
     planner = (workflows / "plan-maintained-releases.yml").read_text(encoding="utf-8")
     preview = (workflows / "preview-supported.yml").read_text(encoding="utf-8")
     publisher = (workflows / "publish-installer.yml").read_text(encoding="utf-8")
+    propagation = (workflows / "propagate-locale.yml").read_text(encoding="utf-8")
 
     assert "dsw-locale maintained-matrix --config locale/translation-config.yml" in planner
     assert "plan-maintained-releases.yml" in preview
     assert "plan-maintained-releases.yml" in publisher
+    assert "dsw-locale maintained-matrix" in propagation
+    assert "select(.translation_ref != $source)" in propagation
     assert "matrix.config_version" in preview
     assert "matrix.config_version" in publisher
     for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
         assert version not in planner
         assert version not in preview
         assert version not in publisher
+        assert version not in propagation
+
+
+def test_locale_pr_validation_exposes_preview_coordinates():
+    workflow = (
+        Path(__file__).parents[1] / ".github" / "workflows" / "validate-locale-pr.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "value: ${{ jobs.validate.outputs.config_version }}" in workflow
+    assert "value: ${{ jobs.validate.outputs.dsw_image_tag }}" in workflow
+    assert "value: ${{ jobs.validate.outputs.translation_changed }}" in workflow

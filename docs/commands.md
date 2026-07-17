@@ -41,6 +41,15 @@ dsw-locale add-runtime \
   --translation "在 DSW 中看到的英文文字"
 ```
 
+Fill blank forms from another release only when their complete source identity matches:
+
+```console
+dsw-locale propagate \
+  --source-root ../source-release \
+  --target-root ../target-release \
+  --report-dir reports/propagation
+```
+
 ## Build and package
 
 ```console

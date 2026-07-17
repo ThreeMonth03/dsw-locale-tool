@@ -34,3 +34,7 @@ preview are excluded from UI findings by their values, not by hiding the questio
 
 The maintained-release workflow runs the same checks for every `active` and `maintenance` version
 defined in `translation-config.yml`.
+
+Translation pull requests start this preview automatically after scope, structure, placeholder, and
+package validation succeeds. Draft pull requests do not consume preview resources. The translation
+repository updates one stable pull-request comment with the run and artifact link.
