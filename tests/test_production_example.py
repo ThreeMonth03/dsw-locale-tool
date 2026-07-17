@@ -12,7 +12,7 @@ def test_production_fragment_is_key_only_and_hardened():
     compose = yaml.safe_load(path.read_text(encoding="utf-8"))
     service = compose["services"]["locale-installer"]
 
-    assert service["image"] == "ghcr.io/threemonth03/dsw-locale-installer:4.32.0"
+    assert service["image"] == "ghcr.io/threemonth03/dsw-locale-installer:4.32.1"
     assert service["platform"] == "linux/amd64"
     assert service["depends_on"] == {"server": {"condition": "service_started"}}
     assert service["environment"] == {

@@ -36,12 +36,12 @@ capabilities，且只能讀取 Compose secret。Fragment 與現有 `depositar-pr
 | DSW line | Installer image |
 | --- | --- |
 | 4.29 | `ghcr.io/threemonth03/dsw-locale-installer:4.29.0` |
-| 4.30 | `ghcr.io/threemonth03/dsw-locale-installer:4.30.0` |
-| 4.31 | `ghcr.io/threemonth03/dsw-locale-installer:4.31.0` |
-| 4.32 | `ghcr.io/threemonth03/dsw-locale-installer:4.32.0` |
+| 4.30 | `ghcr.io/threemonth03/dsw-locale-installer:4.30.1` |
+| 4.31 | `ghcr.io/threemonth03/dsw-locale-installer:4.31.1` |
+| 4.32 | `ghcr.io/threemonth03/dsw-locale-installer:4.32.1` |
 
-後續翻譯 release 只需要修改 `compose.locale.yml` 的 `image:` 一行，例如由 `4.32.0`
-改成 `4.32.1`，再重跑上面的 pull 與 up。Tag 不覆寫；同一 locale coordinate 重跑時，
+後續翻譯 release 只需要修改 `compose.locale.yml` 的 `image:` 一行，例如由 `4.32.1`
+改成 `4.32.2`，再重跑上面的 pull 與 up。Tag 不覆寫；同一 locale coordinate 重跑時，
 installer 會直接啟用既有版本，不重複匯入。
 
 Tool repo 每日從 `translation-config.yml` 動態列出所有 `active` 與 `maintenance` branches，
