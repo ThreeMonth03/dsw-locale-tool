@@ -105,7 +105,7 @@ jobs:
 
       - name: Upload validation artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: locale-pr-${{ inputs.pull_request_number }}
           if-no-files-found: warn

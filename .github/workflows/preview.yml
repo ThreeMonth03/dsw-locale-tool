@@ -141,7 +141,7 @@ jobs:
 
       - name: Upload preview, audit, and locale package
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dsw-locale-preview-${{ inputs.config_version }}
           if-no-files-found: warn

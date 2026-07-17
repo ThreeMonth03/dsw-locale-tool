@@ -64,7 +64,7 @@ jobs:
         run: cat reports/maintenance/maintenance.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload maintenance plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: locale-maintenance-plan
           path: reports/maintenance/
@@ -176,7 +176,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add upstream reports
+          git add upstream
           changed=false
           if ! git diff --cached --quiet; then
             git commit -m "Sync official locale baseline for $VERSION"
@@ -215,7 +215,7 @@ jobs:
 
       - name: Upload synchronized package and report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: locale-maintenance-${{ matrix.version }}
           if-no-files-found: warn
