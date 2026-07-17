@@ -33,6 +33,10 @@ messages.
 
 ## Review the result
 
-The preview workflow renders the proposed locale in a disposable DSW installation. Open the run's
-preview artifact to inspect screenshots and the runtime English-text report. The preview does not
-connect to production data.
+After validation succeeds, CI renders every non-draft translation pull request in a disposable DSW
+installation. A bot comment links to the run. Open its preview artifact to inspect screenshots and
+the runtime English-text report. The preview does not connect to production data.
+
+When the pull request is merged, completed translations are copied into matching blank forms on the
+other maintained release branches. This happens only when the complete source identity is unchanged;
+existing translations are never replaced.

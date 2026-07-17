@@ -18,6 +18,7 @@ from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
+from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from dsw_locale_tool.translation_tree import add_runtime_translation, refresh_translation_tree
@@ -101,6 +102,13 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_parser.add_argument("--source", required=True)
     runtime_parser.add_argument("--translation", default="")
     runtime_parser.add_argument("--context")
+
+    propagate_parser = subparsers.add_parser(
+        "propagate", help="Fill exact blank translations from another release line"
+    )
+    propagate_parser.add_argument("--source-root", type=Path, required=True)
+    propagate_parser.add_argument("--target-root", type=Path, required=True)
+    propagate_parser.add_argument("--report-dir", type=Path, default=Path("reports/propagation"))
 
     audit_parser = subparsers.add_parser(
         "audit", help="Report missing translations and translation-tree health"
@@ -306,6 +314,12 @@ def run(arguments: argparse.Namespace) -> int:
                 msgctxt=arguments.context,
             )
         )
+        return 0
+
+    if arguments.command == "propagate":
+        report = propagate_translations(arguments.source_root, arguments.target_root)
+        json_path, markdown_path = write_propagation_report(report, arguments.report_dir)
+        print(f"Wrote {json_path} and {markdown_path}")
         return 0
 
     if arguments.command == "audit":

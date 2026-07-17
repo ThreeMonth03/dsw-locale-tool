@@ -37,6 +37,7 @@ def test_translation_pr_accepts_markdown_form_change(tmp_path):
     report = validate_translation_pr(base, head, "sync/v4.32")
 
     assert report["changed_paths"] == ["translations/wizard/save--000000000000.translation.md"]
+    assert report["translation_changed"] is True
     assert report["locale_version_bumped"] is False
 
 
@@ -78,6 +79,7 @@ def test_translation_pr_accepts_only_target_version_bump(tmp_path):
     report = validate_translation_pr(base, head, "sync/v4.32")
 
     assert report["locale_version_bumped"] is True
+    assert report["translation_changed"] is False
 
 
 def test_translation_pr_rejects_other_config_changes(tmp_path):

@@ -134,6 +134,10 @@ def validate_translation_pr(
         "valid": True,
         "branch": branch,
         "version": version_key,
+        "translation_changed": any(
+            path.startswith("translations/") and path.endswith(".translation.md")
+            for path in changed
+        ),
         "changed_paths": changed,
         "locale_version_bumped": version_bumped,
     }
