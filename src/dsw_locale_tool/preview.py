@@ -85,10 +85,23 @@ def generate_preview_config(output: str | Path, *, client_url: str) -> Path:
 
 def _wait_for_application(page: Any) -> None:
     """Wait for the SPA loader without depending on network-idle WebSockets."""
-    try:
-        page.locator(".full-page-loader").wait_for(state="detached", timeout=30_000)
-    except Exception:  # Playwright timeout types are optional at import time.
-        page.wait_for_timeout(2_000)
+    for selector in (".full-page-loader", ".page-loader"):
+        try:
+            page.locator(selector).wait_for(state="detached", timeout=30_000)
+        except Exception:  # Playwright timeout types are optional at import time.
+            page.wait_for_timeout(2_000)
+
+
+def _assert_page_available(page: Any, name: str) -> None:
+    """Fail the workflow when a screenshot would capture a DSW error page."""
+    markers = {
+        "not-found": "route was not found",
+        "not-allowed": "preview account is not allowed to view the route",
+        "error": "DSW rendered a full-page error",
+    }
+    for marker, description in markers.items():
+        if page.locator(f'[data-cy="illustrated-message_{marker}"]').is_visible():
+            raise LocaleToolError(f"Cannot capture {name}: {description}: {page.url}")
 
 
 def capture_preview(
@@ -128,7 +141,7 @@ def capture_preview(
     routes = {
         "dashboard": "/",
         "projects": "/projects",
-        "locales": "/settings/locales",
+        "locales": "/locales",
     }
     if project_uuid:
         routes["questionnaire"] = f"/projects/{project_uuid}"
@@ -141,6 +154,7 @@ def capture_preview(
         public_page = public_context.new_page()
         public_page.goto(f"{base_url}/login", wait_until="domcontentloaded", timeout=60_000)
         _wait_for_application(public_page)
+        _assert_page_available(public_page, "login")
         login_path = output_path / "login.png"
         public_page.screenshot(path=login_path, full_page=True)
         report["screenshots"].append(
@@ -155,6 +169,7 @@ def capture_preview(
         for name, route in routes.items():
             page.goto(f"{base_url}{route}", wait_until="domcontentloaded", timeout=60_000)
             _wait_for_application(page)
+            _assert_page_available(page, name)
             screenshot_path = output_path / f"{name}.png"
             page.screenshot(path=screenshot_path, full_page=True)
             report["screenshots"].append(
