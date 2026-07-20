@@ -48,13 +48,11 @@ def test_maintained_matrix_is_derived_from_translation_config():
     planner = (workflows / "plan-maintained-releases.yml").read_text(encoding="utf-8")
     preview = (workflows / "preview-supported.yml").read_text(encoding="utf-8")
     publisher = (workflows / "publish-installer.yml").read_text(encoding="utf-8")
-    client_publisher = (workflows / "publish-client.yml").read_text(encoding="utf-8")
     propagation = (workflows / "propagate-locale.yml").read_text(encoding="utf-8")
 
     assert "dsw-locale maintained-matrix --config locale/translation-config.yml" in planner
     assert "plan-maintained-releases.yml" in preview
     assert "plan-maintained-releases.yml" in publisher
-    assert "plan-maintained-releases.yml" in client_publisher
     assert "dsw-locale maintained-matrix" in propagation
     assert "select(.translation_ref != $source)" in propagation
     assert "dsw-locale bump-release" in propagation
@@ -65,7 +63,6 @@ def test_maintained_matrix_is_derived_from_translation_config():
         assert version not in planner
         assert version not in preview
         assert version not in publisher
-        assert version not in client_publisher
         assert version not in propagation
 
 
@@ -124,17 +121,4 @@ def test_preview_exercises_file_and_administration_interfaces():
     assert "--preview-file tool/preview/fixtures/preview.csv" in workflow
     assert "--allowed-content-json build/file-preview.km" in workflow
     assert "--review-manifest tool/review/pages.yml" in workflow
-    assert "dsw-locale frontend-reference" in workflow
-    assert "DSW_CLIENT_IMAGE" in workflow
-
-
-def test_client_publisher_builds_exact_tested_upstream_release():
-    workflow = (
-        Path(__file__).parents[1] / ".github" / "workflows" / "publish-client.yml"
-    ).read_text(encoding="utf-8")
-
-    assert "ref: v${{ matrix.recommended_app_version }}" in workflow
-    assert "dsw-locale localize-frontend" in workflow
-    assert "npm run test:wizard" in workflow
-    assert "platforms: linux/amd64,linux/arm64" in workflow
-    assert "Smoke test published client" in workflow
+    assert "datastewardshipwizard/wizard-client:${{ inputs.dsw_image_tag }}" in workflow

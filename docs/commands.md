@@ -32,16 +32,6 @@ Validate the scope and locale version of a translation pull request:
 dsw-locale validate-pr --base-root base --head-root locale --branch "sync/$VERSION_KEY"
 ```
 
-Create a form for confirmed UI text that is absent from the official POT:
-
-```console
-dsw-locale add-runtime \
-  --root . \
-  --component wizard \
-  --source "English text observed in DSW" \
-  --translation "在 DSW 中看到的英文文字"
-```
-
 Fill blank forms from another release only when their complete source identity matches:
 
 ```console
@@ -82,30 +72,6 @@ dsw-locale maintained-matrix --config translation-config.yml
 dsw-locale release-info --config translation-config.yml --version "$VERSION_KEY"
 dsw-locale bump-release --config translation-config.yml --version "$VERSION_KEY"
 ```
-
-## Frontend localization
-
-Resolve the immutable client image for an exact DSW application release:
-
-```console
-APP_VERSION=X.Y.Z
-dsw-locale frontend-reference \
-  --manifest frontend/transforms.yml \
-  --version "$APP_VERSION"
-```
-
-Apply the same strict transforms to a checkout of that upstream release:
-
-```console
-dsw-locale localize-frontend \
-  --manifest frontend/transforms.yml \
-  --version "$APP_VERSION" \
-  --source-root ../engine-frontend \
-  --report reports/frontend.json
-```
-
-Each transform accepts either its exact upstream source or its exact localized result. Any other
-source state fails instead of applying a guessed replacement.
 
 ## DSW preview and installation
 

@@ -70,20 +70,6 @@ jobs:
           python -m pip install './tool[preview]'
           python -m playwright install --with-deps chromium
 
-      - name: Resolve localizable client image
-        env:
-          CONFIG_VERSION: ${{ inputs.config_version }}
-        run: |
-          app_version=$(dsw-locale release-info \
-            --config locale/translation-config.yml \
-            --version "$CONFIG_VERSION" \
-            | jq --raw-output .recommended_app_version)
-          client_image=$(dsw-locale frontend-reference \
-            --manifest tool/frontend/transforms.yml \
-            --version "$app_version" \
-            | jq --raw-output .image)
-          echo "DSW_CLIENT_IMAGE=$client_image" >> "$GITHUB_ENV"
-
       - name: Build locale package
         run: |
           dsw-locale validate-config locale/translation-config.yml

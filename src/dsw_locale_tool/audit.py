@@ -7,8 +7,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import polib
-
 from dsw_locale_tool.catalog import (
     catalog_index,
     entry_is_translated,
@@ -39,15 +37,7 @@ def _same_translation(unit: TranslationUnit, entry: Any) -> bool:
 def _effective_entry(template_entry: Any, baseline_entry: Any, unit: TranslationUnit | None) -> Any:
     if unit is None or not unit.translation:
         return baseline_entry
-    entry = (
-        copy.deepcopy(template_entry)
-        if template_entry is not None
-        else polib.POEntry(
-            msgid=unit.msgid,
-            msgctxt=unit.msgctxt,
-            msgid_plural=unit.msgid_plural or "",
-        )
-    )
+    entry = copy.deepcopy(template_entry)
     entry.flags = [flag for flag in entry.flags if flag != "fuzzy"]
     entry.msgstr = "" if unit.msgid_plural else unit.translation
     entry.msgstr_plural = {"0": unit.translation} if unit.msgid_plural else {}
@@ -86,12 +76,7 @@ def audit_component(
     stale_translations = [
         _unit_summary(unit)
         for unit in units.values()
-        if unit.kind == "message" and (unit.msgctxt, unit.msgid) not in template_index
-    ]
-    runtime_sources_now_upstream = [
-        _unit_summary(unit)
-        for unit in units.values()
-        if unit.kind == "runtime" and (unit.msgctxt, unit.msgid) in template_index
+        if (unit.msgctxt, unit.msgid) not in template_index
     ]
     redundant_translations = [
         _unit_summary(unit)
@@ -105,19 +90,8 @@ def audit_component(
     for entry in effective.values():
         if entry is not None and entry_is_translated(entry):
             placeholder_issues.extend(placeholder_mismatches(entry))
-    for unit in units.values():
-        if unit.kind != "runtime" or not unit.translation:
-            continue
-        entry = _effective_entry(None, None, unit)
-        placeholder_issues.extend(placeholder_mismatches(entry))
-
     completed = sum(bool(unit.translation) for unit in units.values())
-    structure_issues = (
-        len(unscaffolded)
-        + len(stale_translations)
-        + len(runtime_sources_now_upstream)
-        + len(redundant_translations)
-    )
+    structure_issues = len(unscaffolded) + len(stale_translations) + len(redundant_translations)
     return {
         "counts": {
             "source_messages": len(template_index),
@@ -132,10 +106,8 @@ def audit_component(
             "translation_units": len(units),
             "completed_units": completed,
             "blank_units": len(units) - completed,
-            "runtime_units": sum(unit.kind == "runtime" for unit in units.values()),
             "unscaffolded": len(unscaffolded),
             "stale_translations": len(stale_translations),
-            "runtime_sources_now_upstream": len(runtime_sources_now_upstream),
             "redundant_translations": len(redundant_translations),
             "structure_issues": structure_issues,
             "placeholder_issues": len(placeholder_issues),
@@ -144,7 +116,6 @@ def audit_component(
         "fuzzy": fuzzy,
         "unscaffolded": unscaffolded,
         "stale_translations": stale_translations,
-        "runtime_sources_now_upstream": runtime_sources_now_upstream,
         "redundant_translations": redundant_translations,
         "placeholder_issues": placeholder_issues,
     }
@@ -166,8 +137,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         "# DSW locale audit",
         "",
         "| Component | Source | Upstream | Effective | Missing | Forms | Completed | "
-        "Runtime-only | Structure | Placeholders |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "Structure | Placeholders |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for component, details in report["components"].items():
         counts = details["counts"]
@@ -175,15 +146,13 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| {component} | {counts['source_messages']} | {counts['upstream_translated']} "
             f"| {counts['effective_translated']} | {counts['missing']} "
             f"| {counts['translation_units']} | {counts['completed_units']} "
-            f"| {counts['runtime_units']} | {counts['structure_issues']} "
-            f"| {counts['placeholder_issues']} |"
+            f"| {counts['structure_issues']} | {counts['placeholder_issues']} |"
         )
 
     labels = {
         "missing": "Missing or fuzzy translations",
         "unscaffolded": "Missing translation forms",
         "stale_translations": "Translated sources absent from upstream",
-        "runtime_sources_now_upstream": "Runtime-only sources now available upstream",
         "redundant_translations": "Local translations identical to upstream",
         "placeholder_issues": "Placeholder mismatches",
     }

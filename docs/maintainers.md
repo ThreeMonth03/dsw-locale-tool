@@ -31,7 +31,7 @@ Structure and placeholder findings must be resolved before packaging.
 
 Merging a translation pull request starts exact propagation for every other maintained release
 branch. CI fills a target only when the form already exists, is blank, and has the same component,
-source, plural source, context, and form kind. Each changed target is audited, built, and packaged
+source, plural source, and context. Each changed target is audited, built, and packaged
 before CI commits it. The source and every changed target receive a new immutable locale patch
 version automatically. A concurrent branch update causes the push to fail instead of being
 overwritten.
@@ -58,24 +58,9 @@ overwritten. Before a new tag is pushed, the workflow starts the configured DSW 
 installer three times: a fresh install, an idempotent repeat, and another repeat after the DSW server
 restarts. The image is published only when all three checks succeed.
 
-## Add runtime-only text
+## Review English found outside the catalog
 
-Only add runtime-only text after a preview or reproducible UI path confirms that it is interface
-text and the exact source is absent from the matching POT. Keep the issue or preview link in the pull
-request. The next synchronization will convert the form automatically if the source enters the
-official catalog.
-
-```console
-dsw-locale add-runtime \
-  --root . \
-  --component wizard \
-  --source "English text observed in DSW" \
-  --translation "在 DSW 中看到的英文文字"
-```
-
-If preview still renders a completed runtime-only translation in English, inspect the matching
-`engine-frontend` release. Text that bypasses gettext needs an exact transform in
-`frontend/transforms.yml`. The **Publish localizable DSW clients** workflow checks out the
-configured application release, applies the transform, runs upstream tests, builds both supported
-container architectures, and smoke-tests the immutable image. Translation content remains in the
-translation repository.
+The browser scan reports visible English that does not match the official POT. Confirm that the
+finding is interface text rather than Knowledge Model, document template, user, or system content.
+Report confirmed extraction gaps upstream; local translation forms remain limited to official
+gettext messages.

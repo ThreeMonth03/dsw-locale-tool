@@ -11,7 +11,6 @@ import yaml
 
 from dsw_locale_tool.config import TranslationConfig
 from dsw_locale_tool.translation_tree import (
-    TranslationUnit,
     load_translation_tree,
     refresh_translation_tree,
     write_translation_tree,
@@ -102,6 +101,4 @@ def make_translation_tree(root: Path) -> None:
     units = load_translation_tree(root)
     count_key = ("wizard", None, "Count: %s")
     units[count_key] = replace(units[count_key], translation="數量")
-    runtime_unit = TranslationUnit("wizard", "runtime", "Runtime only", "僅執行階段出現")
-    units[runtime_unit.key] = runtime_unit
     write_translation_tree(root, units)

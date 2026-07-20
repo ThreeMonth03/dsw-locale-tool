@@ -40,11 +40,10 @@ def test_propagates_only_completed_exact_sources(tmp_path):
 
     target_units = load_translation_tree(target)
     assert target_units[("wizard", None, "Count: %s")].translation == "數量"
-    assert target_units[("wizard", None, "Runtime only")].translation == "僅執行階段出現"
     assert report["counts"] == {
-        "source_completed": 2,
-        "target_blank_before": 3,
-        "applied": 2,
+        "source_completed": 1,
+        "target_blank_before": 2,
+        "applied": 1,
     }
 
 
@@ -71,14 +70,11 @@ def test_requires_complete_source_identity(tmp_path):
     make_translation_tree(target)
     source_units = load_translation_tree(source)
     target_units = load_translation_tree(target)
-    runtime_key = ("wizard", None, "Runtime only")
-    del source_units[runtime_key]
-    del target_units[runtime_key]
     source_unit = TranslationUnit(
-        "wizard", "runtime", "Context-sensitive", "來源翻譯", msgctxt="source-context"
+        "wizard", "message", "Context-sensitive", "來源翻譯", msgctxt="source-context"
     )
     target_unit = TranslationUnit(
-        "wizard", "runtime", "Context-sensitive", "", msgctxt="target-context"
+        "wizard", "message", "Context-sensitive", "", msgctxt="target-context"
     )
     source_units[source_unit.key] = source_unit
     target_units[target_unit.key] = target_unit

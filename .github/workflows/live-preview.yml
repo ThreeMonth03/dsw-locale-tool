@@ -51,7 +51,7 @@ jobs:
     env:
       CONFIG_VERSION: ${{ inputs.config_version }}
       DSW_VERSION: ${{ inputs.dsw_image_tag }}
-      DSW_CLIENT_IMAGE: pending
+      DSW_CLIENT_IMAGE: datastewardshipwizard/wizard-client:${{ inputs.dsw_image_tag }}
       DSW_REVIEW_TOOL_IMAGE: ghcr.io/threemonth03/dsw-review-tool:main
       DSW_REVIEW_ORIGIN: pending
       DSW_REVIEW_PORT: "18088"
@@ -107,18 +107,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: tool/review/update-pr-comment.sh starting
-
-      - name: Resolve localizable client image
-        run: |
-          app_version=$(dsw-locale release-info \
-            --config locale/translation-config.yml \
-            --version "$CONFIG_VERSION" \
-            | jq --raw-output .recommended_app_version)
-          client_image=$(dsw-locale frontend-reference \
-            --manifest tool/frontend/transforms.yml \
-            --version "$app_version" \
-            | jq --raw-output .image)
-          echo "DSW_CLIENT_IMAGE=$client_image" >> "$GITHUB_ENV"
 
       - name: Build locale package
         run: |

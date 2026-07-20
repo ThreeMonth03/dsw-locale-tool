@@ -22,7 +22,7 @@ certificate, or shared tunnel name.
 Each run:
 
 1. validates and packages one exact translation revision;
-2. selects the localizable client for that DSW release;
+2. selects the official client for that DSW release;
 3. starts a private DSW, database, and object store;
 4. exposes only the review gateway through a random HTTPS URL;
 5. adds the URL and release metadata to the translation pull request;
@@ -62,7 +62,7 @@ obtain:
 
 - the locale ZIP built from the translation branch;
 - a synthetic Knowledge Model JSON package;
-- the localizable DSW client image selected by the locale workflow;
+- the official DSW client image matching the locale release;
 - a published [`dsw-review-tool` image from
   GHCR](https://github.com/ThreeMonth03/dsw-locale-tool/pkgs/container/dsw-review-tool).
 

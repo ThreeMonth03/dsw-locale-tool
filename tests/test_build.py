@@ -23,7 +23,6 @@ def test_build_source_applies_markdown_translations_and_rewrites_metadata(tmp_pa
 
     wizard = polib.pofile(output / "wizard.po")
     assert wizard.find("Count: %s").msgstr == "數量"
-    assert wizard.find("Runtime only").msgstr == "僅執行階段出現"
     assert json.loads((output / "locale.json").read_text(encoding="utf-8")) == {
         "organizationId": "depositar",
         "localeId": "zh_Hant",
