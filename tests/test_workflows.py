@@ -90,6 +90,26 @@ def test_ci_validates_review_compose_and_real_nginx_configuration():
     assert "nginx:1.28-alpine nginx -t" in workflow
 
 
+def test_live_preview_uses_a_unique_tunnel_and_bounded_activity_lifecycle():
+    root = Path(__file__).parents[1]
+    workflow = (root / ".github" / "workflows" / "live-preview.yml").read_text(encoding="utf-8")
+    gateway = (root / "review" / "gateway" / "nginx.conf").read_text(encoding="utf-8")
+
+    assert "cloudflare/cloudflared:2026.7.0" in workflow
+    assert "dsw-live-tunnel-${{ github.run_id }}-${{ github.run_attempt }}" in workflow
+    assert "timeout-minutes: 240" in workflow
+    assert "default: 30" in workflow
+    assert "default: 180" in workflow
+    assert "tool/review/up.sh" in workflow
+    assert "dsw-locale wait-review" in workflow
+    assert "tool/review/down.sh" in workflow
+    assert "update-pr-comment.sh ready" in workflow
+    assert "DSW_REVIEW_HEARTBEAT $msec" in gateway
+    assert "location = /review/heartbeat" in gateway
+    for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
+        assert version not in workflow
+
+
 def test_preview_exercises_file_and_administration_interfaces():
     workflow = (
         Path(__file__).parents[1] / ".github" / "workflows" / "preview-locale.yml"

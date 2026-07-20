@@ -3,14 +3,16 @@ set -euo pipefail
 
 review_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-if [[ $# -ne 1 ]]; then
-  printf 'Usage: %s ENV_FILE\n' "$0" >&2
+if [[ $# -gt 1 ]]; then
+  printf 'Usage: %s [ENV_FILE]\n' "$0" >&2
   exit 2
 fi
 
-set -a
-source "$1"
-set +a
+if [[ $# -eq 1 ]]; then
+  set -a
+  source "$1"
+  set +a
+fi
 
 : "${DSW_VERSION:?Set DSW_VERSION}"
 : "${DSW_CLIENT_IMAGE:?Set DSW_CLIENT_IMAGE}"
@@ -38,6 +40,10 @@ for input in "$DSW_REVIEW_LOCALE_BUNDLE" "$DSW_REVIEW_KNOWLEDGE_MODEL"; do
 done
 
 project_name=${DSW_REVIEW_PROJECT_NAME:-dsw-translation-review}
+translation_ref=${DSW_REVIEW_TRANSLATION_REF:-manual}
+revision=${DSW_REVIEW_REVISION:-manual}
+idle_timeout=${DSW_REVIEW_IDLE_TIMEOUT_MINUTES:-30}
+hard_timeout=${DSW_REVIEW_HARD_TIMEOUT_MINUTES:-180}
 export DSW_REVIEW_UID=${DSW_REVIEW_UID:-$(id -u)}
 export DSW_REVIEW_GID=${DSW_REVIEW_GID:-$(id -g)}
 runtime_dir=${DSW_REVIEW_RUNTIME_DIR:-$review_dir/runtime/default}
@@ -64,16 +70,27 @@ mkdir -p -- "$runtime_dir"
   preview-config \
   --output /output/application.yml \
   --client-url "${DSW_REVIEW_ORIGIN}/wizard"
-chmod 600 -- "$runtime_dir/application.yml"
+chmod 644 -- "$runtime_dir/application.yml"
 
 "${compose[@]}" up --detach bucket-init minio postgres server client
 
-"${compose[@]}" run --rm review-tool \
-  prepare-review \
-  --locale-bundle /inputs/locale.zip \
-  --knowledge-model /inputs/knowledge-model.json \
-  --review-manifest /inputs/pages.yml \
+prepare=(
+  "${compose[@]}" run --rm review-tool
+  prepare-review
+  --locale-bundle /inputs/locale.zip
+  --knowledge-model /inputs/knowledge-model.json
+  --review-manifest /inputs/pages.yml
   --output /output/site
+  --dsw-version "$DSW_VERSION"
+  --translation-ref "$translation_ref"
+  --revision "$revision"
+  --idle-timeout-minutes "$idle_timeout"
+  --hard-timeout-minutes "$hard_timeout"
+)
+if [[ -n "${DSW_REVIEW_PULL_REQUEST_URL:-}" ]]; then
+  prepare+=(--pull-request-url "$DSW_REVIEW_PULL_REQUEST_URL")
+fi
+"${prepare[@]}"
 
 "${compose[@]}" up --detach gateway
 

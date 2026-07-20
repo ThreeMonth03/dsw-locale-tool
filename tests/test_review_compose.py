@@ -64,3 +64,9 @@ def test_client_uses_the_public_same_origin_api_and_review_mode_injection():
         encoding="utf-8"
     )
     assert "destination.origin === window.location.origin" in review_mode
+
+
+def test_launcher_makes_generated_config_readable_by_the_versioned_server_user():
+    launcher = (ROOT / "review" / "up.sh").read_text(encoding="utf-8")
+
+    assert 'chmod 644 -- "$runtime_dir/application.yml"' in launcher

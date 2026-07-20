@@ -3,14 +3,16 @@ set -euo pipefail
 
 review_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-if [[ $# -ne 1 ]]; then
-  printf 'Usage: %s ENV_FILE\n' "$0" >&2
+if [[ $# -gt 1 ]]; then
+  printf 'Usage: %s [ENV_FILE]\n' "$0" >&2
   exit 2
 fi
 
-set -a
-source "$1"
-set +a
+if [[ $# -eq 1 ]]; then
+  set -a
+  source "$1"
+  set +a
+fi
 
 project_name=${DSW_REVIEW_PROJECT_NAME:-dsw-translation-review}
 runtime_dir=${DSW_REVIEW_RUNTIME_DIR:-$review_dir/runtime/default}
