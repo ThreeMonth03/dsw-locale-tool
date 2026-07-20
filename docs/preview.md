@@ -4,6 +4,9 @@ The preview workflow starts disposable official DSW containers, imports the prop
 the interface in a browser, and uploads screenshots. The runner removes the containers and data when
 the job ends.
 
+This workflow does not publish a live website. Use the {doc}`public review sandbox
+<review-sandbox>` when translators need a browsable DSW after CI has finished.
+
 ## Render one version
 
 Open **Actions → Render DSW locale preview → Run workflow** in the tool repository and provide:

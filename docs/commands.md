@@ -123,11 +123,31 @@ dsw-locale seed-project --knowledge-model preview.km --project-name "Locale Prev
 dsw-locale capture-preview \
   --output preview-artifact \
   --locale-root ../dsw-ui-locales-zh_Hant \
+  --review-manifest review/pages.yml \
   --project-uuid "$PROJECT_UUID" \
   --file-project-uuid "$FILE_PROJECT_UUID" \
   --preview-file preview/fixtures/preview.csv \
   --allowed-content-json preview.km \
   --allowed-content-json file-preview.km
 ```
+
+Seed a private disposable DSW and generate the public review route policy:
+
+```console
+dsw-locale prepare-review \
+  --locale-bundle dist/locale.zip \
+  --knowledge-model preview.km \
+  --review-manifest review/pages.yml \
+  --output review/runtime/release/site
+```
+
+Verify a running gateway from its internal Docker network:
+
+```console
+dsw-locale verify-review --origin http://gateway:8080
+```
+
+The complete host workflow is documented in the {doc}`public review sandbox
+<review-sandbox>` guide.
 
 Run `dsw-locale COMMAND --help` for the complete option list.

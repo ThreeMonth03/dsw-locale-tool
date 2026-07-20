@@ -153,6 +153,7 @@ jobs:
             capture-preview
             --output preview-artifact
             --locale-root locale
+            --review-manifest tool/review/pages.yml
             --allow-text "Locale Preview"
             --allow-text "File Locale Preview"
           )

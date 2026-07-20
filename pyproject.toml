@@ -36,6 +36,9 @@ dsw-locale = "dsw_locale_tool.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+dsw_locale_tool = ["review_site/*"]
+
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
