@@ -68,12 +68,18 @@ def _authenticated_routes(project_uuid: str | None) -> dict[str, str]:
 def _interactive_scenarios(project_uuid: str | None) -> tuple[_InteractiveScenario, ...]:
     scenarios = [
         _InteractiveScenario(
+            name="openid-microsoft-advanced-form",
+            route="/settings/open-id/create",
+            trigger=".row.mt-4.mb-1 a.fw-bold",
+            ready=".border-start.border-5",
+        ),
+        _InteractiveScenario(
             name="openid-custom-form",
             route="/settings/open-id/create",
             trigger=".nav-tabs .nav-link",
             ready="#url",
             trigger_match="last",
-        )
+        ),
     ]
     if not project_uuid:
         return tuple(scenarios)

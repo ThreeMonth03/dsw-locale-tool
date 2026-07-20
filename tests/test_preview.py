@@ -134,14 +134,15 @@ def test_project_preview_includes_static_and_interactive_states():
     }
     scenarios = _interactive_scenarios(project_uuid)
     assert [scenario.name for scenario in scenarios] == [
+        "openid-microsoft-advanced-form",
         "openid-custom-form",
         "project-share-dialog",
         "question-comment-panel",
         "project-delete-dialog",
     ]
     assert all(scenario.ready for scenario in scenarios)
-    assert scenarios[0].trigger_match == "last"
-    assert scenarios[2].trigger_match == "first"
+    assert scenarios[1].trigger_match == "last"
+    assert scenarios[3].trigger_match == "first"
 
 
 def test_preview_without_project_uses_application_routes_only():
@@ -155,7 +156,10 @@ def test_preview_without_project_uses_application_routes_only():
         "settings-open-id": "/settings/open-id",
         "settings-open-id-create": "/settings/open-id/create",
     }
-    assert [scenario.name for scenario in _interactive_scenarios(None)] == ["openid-custom-form"]
+    assert [scenario.name for scenario in _interactive_scenarios(None)] == [
+        "openid-microsoft-advanced-form",
+        "openid-custom-form",
+    ]
 
 
 def test_file_preview_requires_a_project_and_existing_file(tmp_path):
