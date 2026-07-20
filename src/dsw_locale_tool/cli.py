@@ -32,6 +32,7 @@ from dsw_locale_tool.review import (
     verify_review_gateway,
     wait_for_review,
 )
+from dsw_locale_tool.review_browser import verify_review_browser
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from dsw_locale_tool.translation_tree import (
     add_runtime_translation,
@@ -296,6 +297,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
     )
     verify_review_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+
+    verify_review_browser_parser = subparsers.add_parser(
+        "verify-review-browser",
+        help="Sign in through a public review and require a visible dashboard",
+    )
+    verify_review_browser_parser.add_argument("--origin", default=os.getenv("DSW_REVIEW_ORIGIN"))
+    verify_review_browser_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    verify_review_browser_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
 
     wait_review_parser = subparsers.add_parser(
         "wait-review",
@@ -583,6 +594,15 @@ def run(arguments: argparse.Namespace) -> int:
 
     if arguments.command == "verify-review":
         result = verify_review_gateway(
+            _required(arguments.origin, "DSW_REVIEW_ORIGIN"),
+            email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
+            password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "verify-review-browser":
+        result = verify_review_browser(
             _required(arguments.origin, "DSW_REVIEW_ORIGIN"),
             email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
             password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),

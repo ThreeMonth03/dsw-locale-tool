@@ -150,6 +150,12 @@ Verify a running gateway from its internal Docker network:
 dsw-locale verify-review --origin http://gateway:8080
 ```
 
+Verify the real sign-in flow and rendered dashboard when Playwright is installed:
+
+```console
+dsw-locale verify-review-browser --origin https://review.example.org
+```
+
 Keep an ephemeral review alive until its browser activity or hard lifetime expires:
 
 ```console

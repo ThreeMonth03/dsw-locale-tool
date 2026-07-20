@@ -31,6 +31,7 @@ def test_review_manifest_is_the_route_policy_for_public_and_authenticated_pages(
 
     assert review_routes(manifest, None, authenticated=False) == {"login": "/login"}
     project_routes = review_routes(manifest, "project-uuid", authenticated=True)
+    assert project_routes["dashboard"] == "/dashboard"
     assert project_routes["locales"] == "/locales"
     assert project_routes["questionnaire"] == "/projects/project-uuid"
     assert all("{" not in route for route in project_routes.values())
@@ -110,6 +111,12 @@ def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path)
     assert payload["metadata"]["revision"] == "abcdef1234567890"
     assert payload["metadata"]["idleTimeoutMinutes"] == 30
     assert payload["metadata"]["hardTimeoutMinutes"] == 180
+    assert (
+        next(page for page in payload["pages"] if page["name"] == "dashboard")["path"]
+        == "/wizard/dashboard"
+    )
+    assert "/wizard/" in payload["allowedPaths"]
+    assert "/wizard/dashboard" in payload["allowedPaths"]
     assert "/wizard/projects/project-uuid" in payload["allowedPaths"]
     assert "/wizard/users" not in payload["allowedPaths"]
     route_map = (site / "allowed-routes.map").read_text(encoding="utf-8").splitlines()

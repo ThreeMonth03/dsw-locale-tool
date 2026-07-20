@@ -8,7 +8,12 @@
     const destination = new URL(url, window.location.href);
     return destination.origin === window.location.origin && allowed.has(destination.pathname);
   };
-  const returnToPortal = () => window.location.assign("/");
+  let returningToPortal = false;
+  const returnToPortal = () => {
+    if (returningToPortal) return;
+    returningToPortal = true;
+    window.location.replace("/");
+  };
 
   for (const method of ["pushState", "replaceState"]) {
     const original = history[method].bind(history);
