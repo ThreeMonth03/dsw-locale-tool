@@ -26,9 +26,17 @@ from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.release import bump_locale_version
-from dsw_locale_tool.review import prepare_review, verify_review_gateway
+from dsw_locale_tool.review import (
+    ReviewMetadata,
+    prepare_review,
+    verify_review_gateway,
+    wait_for_review,
+)
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
-from dsw_locale_tool.translation_tree import add_runtime_translation, refresh_translation_tree
+from dsw_locale_tool.translation_tree import (
+    add_runtime_translation,
+    refresh_translation_tree,
+)
 from dsw_locale_tool.versions import (
     available_git_branches,
     build_version_report,
@@ -58,7 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     validate_pr_parser.add_argument("--branch", required=True)
 
     versions_parser = subparsers.add_parser(
-        "version-report", help="Compare configured versions and branches with official Weblate"
+        "version-report",
+        help="Compare configured versions and branches with official Weblate",
     )
     versions_parser.add_argument("--config", type=Path, required=True)
     versions_parser.add_argument(
@@ -124,7 +133,8 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_parser.add_argument("--root", type=Path, default=Path.cwd())
 
     runtime_parser = subparsers.add_parser(
-        "add-runtime", help="Add one confirmed UI source that is absent from the official POT"
+        "add-runtime",
+        help="Add one confirmed UI source that is absent from the official POT",
     )
     runtime_parser.add_argument("--root", type=Path, default=Path.cwd())
     runtime_parser.add_argument("--component", choices=("wizard", "mail"), default="wizard")
@@ -168,7 +178,8 @@ def build_parser() -> argparse.ArgumentParser:
     package_parser.add_argument("--output", type=Path, required=True)
 
     preview_config_parser = subparsers.add_parser(
-        "preview-config", help="Generate ephemeral secrets and DSW preview configuration"
+        "preview-config",
+        help="Generate ephemeral secrets and DSW preview configuration",
     )
     preview_config_parser.add_argument("--output", type=Path, required=True)
     preview_config_parser.add_argument(
@@ -238,7 +249,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     prepare_review_parser = subparsers.add_parser(
-        "prepare-review", help="Seed an isolated DSW and generate its public review site"
+        "prepare-review",
+        help="Seed an isolated DSW and generate its public review site",
     )
     prepare_review_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
     prepare_review_parser.add_argument("--client-url", default=os.getenv("DSW_CLIENT_URL"))
@@ -251,15 +263,64 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_review_parser.add_argument("--review-manifest", type=Path, required=True)
     prepare_review_parser.add_argument("--output", type=Path, required=True)
     prepare_review_parser.add_argument("--project-name", default="Translation Review")
+    prepare_review_parser.add_argument("--dsw-version", default=os.getenv("DSW_VERSION"))
+    prepare_review_parser.add_argument(
+        "--translation-ref",
+        default=os.getenv("DSW_REVIEW_TRANSLATION_REF", "manual"),
+    )
+    prepare_review_parser.add_argument(
+        "--revision",
+        default=os.getenv("DSW_REVIEW_REVISION", "manual"),
+    )
+    prepare_review_parser.add_argument(
+        "--pull-request-url",
+        default=os.getenv("DSW_REVIEW_PULL_REQUEST_URL"),
+    )
+    prepare_review_parser.add_argument(
+        "--idle-timeout-minutes",
+        type=int,
+        default=os.getenv("DSW_REVIEW_IDLE_TIMEOUT_MINUTES", "30"),
+    )
+    prepare_review_parser.add_argument(
+        "--hard-timeout-minutes",
+        type=int,
+        default=os.getenv("DSW_REVIEW_HARD_TIMEOUT_MINUTES", "180"),
+    )
 
     verify_review_parser = subparsers.add_parser(
-        "verify-review", help="Verify that a public review gateway permits reads and denies writes"
+        "verify-review",
+        help="Verify that a public review gateway permits reads and denies writes",
     )
     verify_review_parser.add_argument("--origin", default=os.getenv("DSW_REVIEW_ORIGIN"))
     verify_review_parser.add_argument(
         "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
     )
     verify_review_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+
+    wait_review_parser = subparsers.add_parser(
+        "wait-review",
+        help="Keep an ephemeral review available while a browser is active",
+    )
+    wait_review_parser.add_argument("--compose-file", type=Path, required=True)
+    wait_review_parser.add_argument(
+        "--project-name",
+        default=os.getenv("DSW_REVIEW_PROJECT_NAME", "dsw-translation-review"),
+    )
+    wait_review_parser.add_argument(
+        "--tunnel-container",
+        default=os.getenv("DSW_REVIEW_TUNNEL_CONTAINER", "dsw-review-tunnel"),
+    )
+    wait_review_parser.add_argument(
+        "--idle-timeout-minutes",
+        type=int,
+        default=os.getenv("DSW_REVIEW_IDLE_TIMEOUT_MINUTES", "30"),
+    )
+    wait_review_parser.add_argument(
+        "--hard-timeout-minutes",
+        type=int,
+        default=os.getenv("DSW_REVIEW_HARD_TIMEOUT_MINUTES", "180"),
+    )
+    wait_review_parser.add_argument("--poll-seconds", type=float, default=30)
     return parser
 
 
@@ -497,6 +558,14 @@ def run(arguments: argparse.Namespace) -> int:
         return 0
 
     if arguments.command == "prepare-review":
+        metadata = ReviewMetadata(
+            dsw_version=_required(arguments.dsw_version, "DSW_VERSION"),
+            translation_ref=arguments.translation_ref,
+            revision=arguments.revision,
+            pull_request_url=arguments.pull_request_url,
+            idle_timeout_minutes=arguments.idle_timeout_minutes,
+            hard_timeout_minutes=arguments.hard_timeout_minutes,
+        )
         result = prepare_review(
             api_url=_required(arguments.api_url, "DSW_API_URL"),
             client_url=_required(arguments.client_url, "DSW_CLIENT_URL"),
@@ -506,6 +575,7 @@ def run(arguments: argparse.Namespace) -> int:
             knowledge_model=arguments.knowledge_model,
             manifest_path=arguments.review_manifest,
             output=arguments.output,
+            metadata=metadata,
             project_name=arguments.project_name,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -516,6 +586,18 @@ def run(arguments: argparse.Namespace) -> int:
             _required(arguments.origin, "DSW_REVIEW_ORIGIN"),
             email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
             password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "wait-review":
+        result = wait_for_review(
+            compose_file=arguments.compose_file,
+            project_name=arguments.project_name,
+            tunnel_container=arguments.tunnel_container,
+            idle_timeout_minutes=arguments.idle_timeout_minutes,
+            hard_timeout_minutes=arguments.hard_timeout_minutes,
+            poll_seconds=arguments.poll_seconds,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

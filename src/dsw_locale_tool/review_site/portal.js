@@ -10,6 +10,20 @@
   document.querySelector("#review-email").textContent = config.reviewer.email;
   document.querySelector("#review-password").textContent = config.reviewer.password;
 
+  const metadata = config.metadata;
+  document.querySelector("#review-dsw-version").textContent = metadata.dswVersion;
+  document.querySelector("#review-translation-ref").textContent = metadata.translationRef;
+  document.querySelector("#review-revision").textContent = metadata.revision.slice(0, 12);
+  document.querySelector("#review-lifetime").textContent =
+    `${metadata.idleTimeoutMinutes} min idle · ${metadata.hardTimeoutMinutes} min maximum`;
+  document.querySelector("#review-hard-expiry").textContent =
+    new Date(metadata.hardExpiresAt).toLocaleString();
+  if (metadata.pullRequestUrl) {
+    const pullRequest = document.querySelector("#review-pull-request");
+    pullRequest.href = metadata.pullRequestUrl;
+    pullRequest.hidden = false;
+  }
+
   const groups = new Map();
   for (const page of config.pages) {
     if (!groups.has(page.group)) groups.set(page.group, []);

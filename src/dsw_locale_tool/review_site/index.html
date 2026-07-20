@@ -7,6 +7,7 @@
     <title>DSW Translation Review</title>
     <link rel="stylesheet" href="/review/review.css">
     <script src="/review/config.js" defer></script>
+    <script src="/review/heartbeat.js" defer></script>
     <script src="/review/portal.js" defer></script>
   </head>
   <body class="review-portal">
@@ -19,6 +20,21 @@
           application data are blocked by the gateway.
         </p>
       </header>
+
+      <section class="review-card review-metadata" aria-labelledby="metadata-heading">
+        <div>
+          <h2 id="metadata-heading">Preview details</h2>
+          <p>This temporary site shows one exact translation revision.</p>
+        </div>
+        <dl>
+          <div><dt>DSW</dt><dd id="review-dsw-version"></dd></div>
+          <div><dt>Translation</dt><dd id="review-translation-ref"></dd></div>
+          <div><dt>Revision</dt><dd id="review-revision"></dd></div>
+          <div><dt>Lifetime</dt><dd id="review-lifetime"></dd></div>
+          <div><dt>Hard expiry</dt><dd id="review-hard-expiry"></dd></div>
+        </dl>
+        <a id="review-pull-request" class="review-secondary" hidden>Open pull request</a>
+      </section>
 
       <section class="review-card review-credentials" aria-labelledby="credentials-heading">
         <div>

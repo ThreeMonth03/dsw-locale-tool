@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +13,11 @@ from pydantic import ValidationError
 
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.review import (
+    ReviewMetadata,
     generate_review_site,
+    latest_review_heartbeat,
     load_review_manifest,
+    review_expiry_reason,
     review_routes,
     verify_review_gateway,
 )
@@ -77,12 +81,21 @@ def test_review_manifest_rejects_multiline_browser_selectors(tmp_path):
 
 
 def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path):
+    metadata = ReviewMetadata(
+        dsw_version="4.32.1",
+        translation_ref="sync/v4.32",
+        revision="abcdef1234567890",
+        pull_request_url="https://github.com/example/locale/pull/7",
+        idle_timeout_minutes=30,
+        hard_timeout_minutes=180,
+    )
     payload = generate_review_site(
         load_review_manifest(MANIFEST),
         tmp_path / "site",
         project_uuid="project-uuid",
         reviewer_email="reviewer@example.test",
         reviewer_password="disposable",
+        metadata=metadata,
     )
 
     site = tmp_path / "site"
@@ -92,12 +105,92 @@ def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path)
         "email": "reviewer@example.test",
         "password": "disposable",
     }
+    assert payload["metadata"]["dswVersion"] == "4.32.1"
+    assert payload["metadata"]["translationRef"] == "sync/v4.32"
+    assert payload["metadata"]["revision"] == "abcdef1234567890"
+    assert payload["metadata"]["idleTimeoutMinutes"] == 30
+    assert payload["metadata"]["hardTimeoutMinutes"] == 180
     assert "/wizard/projects/project-uuid" in payload["allowedPaths"]
     assert "/wizard/users" not in payload["allowedPaths"]
     route_map = (site / "allowed-routes.map").read_text(encoding="utf-8").splitlines()
     assert "/wizard/projects/project-uuid 1;" in route_map
     assert route_map == sorted(route_map)
     assert json.loads((site / "review" / "review.json").read_text(encoding="utf-8")) == payload
+    assert (site / "review" / "heartbeat.js").is_file()
+
+
+def test_review_metadata_has_an_absolute_hard_expiry():
+    metadata = ReviewMetadata(
+        dsw_version="4.32.1",
+        translation_ref="sync/v4.32",
+        revision="abcdef12",
+        idle_timeout_minutes=30,
+        hard_timeout_minutes=180,
+    )
+
+    payload = metadata.public_payload(datetime(2026, 7, 20, 8, 0, tzinfo=UTC))
+
+    assert payload["generatedAt"] == "2026-07-20T08:00:00Z"
+    assert payload["hardExpiresAt"] == "2026-07-20T11:00:00Z"
+
+
+def test_review_metadata_rejects_invalid_lifetime_and_pull_request_url():
+    with pytest.raises(ValidationError, match="hard timeout"):
+        ReviewMetadata(
+            dsw_version="4.32.1",
+            translation_ref="sync/v4.32",
+            revision="abcdef12",
+            idle_timeout_minutes=30,
+            hard_timeout_minutes=20,
+        )
+    with pytest.raises(ValidationError, match="public HTTPS URL"):
+        ReviewMetadata(
+            dsw_version="4.32.1",
+            translation_ref="sync/v4.32",
+            revision="abcdef12",
+            pull_request_url="http://localhost/pull/7",
+            idle_timeout_minutes=30,
+            hard_timeout_minutes=180,
+        )
+
+
+def test_review_heartbeat_parser_and_expiry_policy():
+    logs = (
+        "gateway | unrelated\ngateway | DSW_REVIEW_HEARTBEAT 100.25\nDSW_REVIEW_HEARTBEAT 160.5\n"
+    )
+
+    assert latest_review_heartbeat(logs) == 160.5
+    assert latest_review_heartbeat("unrelated") is None
+    assert (
+        review_expiry_reason(
+            now=1900,
+            started_at=0,
+            last_activity_at=150,
+            idle_timeout_seconds=1800,
+            hard_timeout_seconds=10800,
+        )
+        is None
+    )
+    assert (
+        review_expiry_reason(
+            now=1950,
+            started_at=0,
+            last_activity_at=150,
+            idle_timeout_seconds=1800,
+            hard_timeout_seconds=10800,
+        )
+        == "idle"
+    )
+    assert (
+        review_expiry_reason(
+            now=10800,
+            started_at=0,
+            last_activity_at=10799,
+            idle_timeout_seconds=1800,
+            hard_timeout_seconds=10800,
+        )
+        == "hard-limit"
+    )
 
 
 class FakeResponse:
@@ -119,6 +212,8 @@ class FakeSession:
         path = url.removeprefix("https://review.example.test")
         if method == "POST" and path == "/wizard-api/tokens":
             return FakeResponse(200, {"token": "review-token"})
+        if method == "POST" and path == "/review/heartbeat":
+            return FakeResponse(204)
         if method == "GET" and path == "/wizard-api/users/current":
             return FakeResponse(200, {"uuid": "reviewer"})
         if path in {"/", "/wizard/login"}:
@@ -140,6 +235,7 @@ def test_gateway_verifier_checks_login_reads_writes_websockets_and_page_policy()
 
     assert result == {
         "portal": 200,
+        "heartbeat": 204,
         "login-page": 200,
         "login": 200,
         "read-api": 200,

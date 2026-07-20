@@ -138,13 +138,27 @@ dsw-locale prepare-review \
   --locale-bundle dist/locale.zip \
   --knowledge-model preview.km \
   --review-manifest review/pages.yml \
-  --output review/runtime/release/site
+  --output review/runtime/release/site \
+  --dsw-version "$DSW_VERSION" \
+  --translation-ref "$TRANSLATION_REF" \
+  --revision "$TRANSLATION_SHA"
 ```
 
 Verify a running gateway from its internal Docker network:
 
 ```console
 dsw-locale verify-review --origin http://gateway:8080
+```
+
+Keep an ephemeral review alive until its browser activity or hard lifetime expires:
+
+```console
+dsw-locale wait-review \
+  --compose-file review/docker-compose.yml \
+  --project-name "$COMPOSE_PROJECT" \
+  --tunnel-container "$TUNNEL_CONTAINER" \
+  --idle-timeout-minutes 30 \
+  --hard-timeout-minutes 180
 ```
 
 The complete host workflow is documented in the {doc}`public review sandbox

@@ -41,8 +41,24 @@ jobs:
             DSW_ADMIN_PASSWORD=password \
             docker compose --file review/docker-compose.yml config --quiet
 
-          .venv/bin/python -c \
-            "from dsw_locale_tool.review import generate_review_site, load_review_manifest; generate_review_site(load_review_manifest('review/pages.yml'), 'build/review-nginx/site', project_uuid='fb984853-ab21-4250-85de-28ee9a36069b', reviewer_email='reviewer@example.test', reviewer_password='disposable')"
+          .venv/bin/python - <<'PY'
+          from dsw_locale_tool.review import ReviewMetadata, generate_review_site, load_review_manifest
+
+          generate_review_site(
+              load_review_manifest("review/pages.yml"),
+              "build/review-nginx/site",
+              project_uuid="fb984853-ab21-4250-85de-28ee9a36069b",
+              reviewer_email="reviewer@example.test",
+              reviewer_password="disposable",
+              metadata=ReviewMetadata(
+                  dsw_version="test",
+                  translation_ref="test",
+                  revision="test",
+                  idle_timeout_minutes=30,
+                  hard_timeout_minutes=180,
+              ),
+          )
+          PY
 
           docker run --rm \
             --add-host server:127.0.0.1 \

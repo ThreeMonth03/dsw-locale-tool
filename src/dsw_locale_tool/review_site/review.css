@@ -65,6 +65,49 @@ body.review-portal {
   margin-bottom: 3rem;
 }
 
+.review-metadata {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.8fr) minmax(20rem, 1.4fr) auto;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.review-metadata h2,
+.review-metadata p {
+  margin: 0;
+}
+
+.review-metadata p {
+  margin-top: 0.25rem;
+  color: var(--review-muted);
+}
+
+.review-metadata dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 1rem;
+  margin: 0;
+}
+
+.review-metadata dl div {
+  min-width: 0;
+}
+
+.review-metadata dt {
+  color: var(--review-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.review-metadata dd {
+  margin: 0.1rem 0 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
 .review-credentials h2,
 .review-page-group h3 {
   margin: 0;
@@ -108,6 +151,12 @@ body.review-portal {
 
 .review-primary:hover {
   background: var(--review-accent-dark);
+}
+
+.review-secondary {
+  color: var(--review-accent-dark);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .review-groups {
@@ -167,7 +216,12 @@ body.review-portal {
 }
 
 @media (max-width: 48rem) {
-  .review-credentials {
+  .review-credentials,
+  .review-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .review-metadata dl {
     grid-template-columns: 1fr;
   }
 

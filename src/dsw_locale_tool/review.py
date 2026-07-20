@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import time
 from collections import Counter
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +24,7 @@ from dsw_locale_tool.errors import LocaleToolError
 
 _NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _PROJECT_PLACEHOLDER = "{project_uuid}"
+_HEARTBEAT_PATTERN = re.compile(r"DSW_REVIEW_HEARTBEAT (?P<timestamp>[0-9]+(?:\.[0-9]+)?)")
 
 
 def _validate_route(value: str) -> str:
@@ -148,6 +151,51 @@ class ResolvedReviewScenario(StrictModel):
     trigger_match: Literal["only", "first", "last"]
 
 
+class ReviewMetadata(StrictModel):
+    """Release and lifetime details displayed by an ephemeral review sandbox."""
+
+    dsw_version: str = Field(min_length=1)
+    translation_ref: str = Field(min_length=1)
+    revision: str = Field(min_length=1)
+    pull_request_url: str | None = None
+    idle_timeout_minutes: int = Field(ge=1, le=360)
+    hard_timeout_minutes: int = Field(ge=1, le=360)
+
+    @field_validator("pull_request_url")
+    @classmethod
+    def validate_pull_request_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if parts.scheme != "https" or not parts.netloc or parts.username or parts.password:
+            raise ValueError("must be a public HTTPS URL")
+        return value
+
+    @model_validator(mode="after")
+    def validate_timeouts(self) -> ReviewMetadata:
+        if self.hard_timeout_minutes < self.idle_timeout_minutes:
+            raise ValueError("hard timeout must not be shorter than idle timeout")
+        return self
+
+    def public_payload(self, generated_at: datetime | None = None) -> dict[str, Any]:
+        """Return browser-safe metadata with an absolute hard-expiry timestamp."""
+        created = generated_at or datetime.now(UTC)
+        if created.tzinfo is None:
+            raise ValueError("generated_at must include a timezone")
+        created = created.astimezone(UTC)
+        expires = created + timedelta(minutes=self.hard_timeout_minutes)
+        return {
+            "dswVersion": self.dsw_version,
+            "translationRef": self.translation_ref,
+            "revision": self.revision,
+            "pullRequestUrl": self.pull_request_url,
+            "idleTimeoutMinutes": self.idle_timeout_minutes,
+            "hardTimeoutMinutes": self.hard_timeout_minutes,
+            "generatedAt": created.isoformat().replace("+00:00", "Z"),
+            "hardExpiresAt": expires.isoformat().replace("+00:00", "Z"),
+        }
+
+
 def load_review_manifest(path: str | Path) -> ReviewManifest:
     """Load the strict review route manifest."""
     manifest_path = Path(path)
@@ -216,6 +264,7 @@ def generate_review_site(
     project_uuid: str | None,
     reviewer_email: str,
     reviewer_password: str,
+    metadata: ReviewMetadata,
 ) -> dict[str, Any]:
     """Create the static portal, browser guard configuration, and Nginx route map."""
     output_path = Path(output)
@@ -246,6 +295,7 @@ def generate_review_site(
     payload = {
         "schemaVersion": 1,
         "reviewer": {"email": reviewer_email, "password": reviewer_password},
+        "metadata": metadata.public_payload(),
         "pages": public_pages,
         "allowedPaths": [page["path"] for page in public_pages],
     }
@@ -273,6 +323,7 @@ def prepare_review(
     knowledge_model: str | Path,
     manifest_path: str | Path,
     output: str | Path,
+    metadata: ReviewMetadata,
     project_name: str = "Translation Review",
 ) -> dict[str, Any]:
     """Seed the private disposable DSW and generate its public review policy."""
@@ -289,12 +340,115 @@ def prepare_review(
         project_uuid=project_uuid,
         reviewer_email=email,
         reviewer_password=password,
+        metadata=metadata,
     )
     result = {"projectUuid": project_uuid, "locale": locale, "pages": pages["pages"]}
     (Path(output) / "setup.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     return result
+
+
+def latest_review_heartbeat(logs: str) -> float | None:
+    """Return the newest browser heartbeat timestamp found in gateway logs."""
+    timestamps = [float(match.group("timestamp")) for match in _HEARTBEAT_PATTERN.finditer(logs)]
+    return max(timestamps, default=None)
+
+
+def review_expiry_reason(
+    *,
+    now: float,
+    started_at: float,
+    last_activity_at: float,
+    idle_timeout_seconds: float,
+    hard_timeout_seconds: float,
+) -> Literal["idle", "hard-limit"] | None:
+    """Determine whether an ephemeral review has reached either lifetime limit."""
+    if now - started_at >= hard_timeout_seconds:
+        return "hard-limit"
+    if now - last_activity_at >= idle_timeout_seconds:
+        return "idle"
+    return None
+
+
+def _epoch_isoformat(value: float) -> str:
+    return datetime.fromtimestamp(value, UTC).isoformat().replace("+00:00", "Z")
+
+
+def wait_for_review(
+    *,
+    compose_file: str | Path,
+    project_name: str,
+    tunnel_container: str,
+    idle_timeout_minutes: int,
+    hard_timeout_minutes: int,
+    poll_seconds: float = 30,
+) -> dict[str, str]:
+    """Keep a review alive while browsers are active and stop at its hard limit."""
+    if (
+        idle_timeout_minutes < 1
+        or hard_timeout_minutes < idle_timeout_minutes
+        or hard_timeout_minutes > 360
+    ):
+        raise LocaleToolError(
+            "Review timeouts must be positive, ordered, and no longer than 360 minutes"
+        )
+    if poll_seconds <= 0 or poll_seconds > 300:
+        raise LocaleToolError("Review poll interval must be between 0 and 300 seconds")
+
+    compose_path = Path(compose_file)
+    if not compose_path.is_file():
+        raise LocaleToolError(f"Review Compose file does not exist: {compose_path}")
+
+    started_at = time.time()
+    last_activity_at = started_at
+    while True:
+        tunnel = subprocess.run(
+            ["docker", "inspect", "--format={{.State.Running}}", tunnel_container],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if tunnel.returncode != 0 or tunnel.stdout.strip() != "true":
+            raise LocaleToolError("The public review tunnel stopped unexpectedly")
+
+        gateway_logs = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--project-name",
+                project_name,
+                "--file",
+                str(compose_path),
+                "logs",
+                "--no-color",
+                "gateway",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if gateway_logs.returncode != 0:
+            raise LocaleToolError("Unable to read review gateway activity")
+        if (heartbeat := latest_review_heartbeat(gateway_logs.stdout)) is not None:
+            last_activity_at = max(last_activity_at, heartbeat)
+
+        now = time.time()
+        reason = review_expiry_reason(
+            now=now,
+            started_at=started_at,
+            last_activity_at=last_activity_at,
+            idle_timeout_seconds=idle_timeout_minutes * 60,
+            hard_timeout_seconds=hard_timeout_minutes * 60,
+        )
+        if reason:
+            return {
+                "reason": reason,
+                "startedAt": _epoch_isoformat(started_at),
+                "lastActivityAt": _epoch_isoformat(last_activity_at),
+                "endedAt": _epoch_isoformat(now),
+            }
+        time.sleep(poll_seconds)
 
 
 def verify_review_gateway(
@@ -332,6 +486,11 @@ def verify_review_gateway(
     else:
         raise LocaleToolError(f"Review gateway did not become ready: {portal_error}")
     checks["portal"] = response.status_code
+
+    heartbeat = request("POST", "/review/heartbeat")
+    checks["heartbeat"] = heartbeat.status_code
+    if heartbeat.status_code != 204:
+        raise LocaleToolError(f"Review gateway heartbeat failed with HTTP {heartbeat.status_code}")
 
     for name, path in (("login-page", "/wizard/login"),):
         response = request("GET", path)

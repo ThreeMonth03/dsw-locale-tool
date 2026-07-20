@@ -38,8 +38,15 @@
       const banner = document.createElement("aside");
       banner.id = "dsw-review-banner";
       banner.setAttribute("role", "status");
-      banner.innerHTML =
-        '<a href="/">Translation review</a><span>Changes are blocked and not saved</span>';
+      const link = document.createElement("a");
+      link.href = "/";
+      link.textContent = "Translation review";
+      const details = document.createElement("span");
+      const revision = config.metadata.revision.slice(0, 12);
+      details.textContent =
+        `DSW ${config.metadata.dswVersion} · ${config.metadata.translationRef} · ` +
+        `${revision} · changes are blocked`;
+      banner.append(link, details);
       document.body.prepend(banner);
     }
     for (const link of document.querySelectorAll("a[href]")) {
