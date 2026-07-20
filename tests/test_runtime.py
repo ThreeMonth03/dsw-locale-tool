@@ -51,6 +51,7 @@ def test_allowed_content_loads_all_json_string_values(tmp_path):
         "Markdown",
         "#fff",
         "fab fa-openid",
+        "Microsoft",
     } <= allowed
 
 
