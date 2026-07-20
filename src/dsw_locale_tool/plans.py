@@ -24,6 +24,7 @@ def build_maintained_matrix(config: TranslationConfig) -> dict[str, list[dict[st
                 "config_version": version_key,
                 "translation_ref": f"{config.branches.version_prefix}{version_key}",
                 "dsw_image_tag": version_key.removeprefix("v"),
+                "recommended_app_version": version.recommended_app_version,
             }
         )
     return {"include": include}

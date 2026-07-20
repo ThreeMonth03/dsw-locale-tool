@@ -2,7 +2,7 @@
 
 This project fills gaps in the official DSW UI locale and turns the result into a locale package
 that can be previewed or installed through the DSW API. It does not require a private Weblate
-instance or a frontend fork.
+instance or a long-lived frontend fork.
 
 :::{admonition} Choose where to start
 :class: tip
@@ -33,6 +33,10 @@ commands
 3. A contributor fills the Traditional Chinese block in one or more forms.
 4. CI validates placeholders, builds the locale, and renders a disposable DSW preview.
 5. A versioned installer image imports the approved locale through the DSW API.
+
+When preview finds interface text that DSW has not connected to gettext, CI builds a minimal
+localizable client from the exact upstream release. The translation remains in the same Markdown
+form; translators never edit frontend code.
 
 Each DSW minor release has its own `sync/vX.Y` branch, so source strings never move between
 versions by guesswork.

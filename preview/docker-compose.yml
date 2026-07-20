@@ -35,7 +35,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   server:
-    image: datastewardshipwizard/wizard-server:${DSW_VERSION:-4.32}
+    image: datastewardshipwizard/wizard-server:${DSW_VERSION:?Set DSW_VERSION}
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -49,7 +49,7 @@ services:
       - ./runtime/application.yml:/app/config/application.yml:ro
 
   client:
-    image: datastewardshipwizard/wizard-client:${DSW_VERSION:-4.32}
+    image: ${DSW_CLIENT_IMAGE:?Set DSW_CLIENT_IMAGE}
     restart: unless-stopped
     ports:
       - 127.0.0.1:${DSW_CLIENT_PORT:-8080}:8080

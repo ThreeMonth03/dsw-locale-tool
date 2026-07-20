@@ -1,7 +1,8 @@
 # Production installation
 
-Production continues to use official DSW server and client images. A one-shot locale installer
-imports the packaged translation through the DSW API.
+Production continues to use the official DSW server. A one-shot locale installer imports the
+packaged translation through the DSW API. An optional localizable client image covers confirmed
+frontend strings that bypass gettext in the official client.
 
 ## Add the installer
 
@@ -46,3 +47,37 @@ commands again. Reusing a tag is idempotent. Rolling back does not delete other 
 
 Use a fresh browser session after changing the default locale so an existing session does not retain
 its previous locale selection.
+
+## Replace the client only when required
+
+Preview reports identify translations that still render in English. If the matching DSW release
+needs a frontend transform, choose its immutable image from the
+[published localizable clients](https://github.com/ThreeMonth03/dsw-locale-tool/pkgs/container/dsw-wizard-client)
+and set:
+
+```text
+DSW_CLIENT_IMAGE=ghcr.io/threemonth03/dsw-wizard-client:<app-version>-l10n-<patch-set>
+```
+
+Add
+[`production/compose.client.yml`](https://github.com/ThreeMonth03/dsw-locale-tool/blob/main/production/compose.client.yml)
+to the same Compose command:
+
+```console
+docker compose \
+  -f docker-compose.yml \
+  -f compose.locale.yml \
+  -f compose.client.yml \
+  config --quiet
+docker compose \
+  -f docker-compose.yml \
+  -f compose.client.yml \
+  pull client
+docker compose \
+  -f docker-compose.yml \
+  -f compose.client.yml \
+  up --detach client
+```
+
+The fragment overrides only `client.image`. Remove it when the official client release exposes all
+required text to gettext.
