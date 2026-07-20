@@ -80,6 +80,16 @@ def test_locale_pr_validation_exposes_preview_coordinates():
     assert "dsw-locale refresh-tree --root locale" in workflow
 
 
+def test_ci_validates_review_compose_and_real_nginx_configuration():
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "docker compose --file review/docker-compose.yml config --quiet" in workflow
+    assert "generate_review_site" in workflow
+    assert "nginx:1.28-alpine nginx -t" in workflow
+
+
 def test_preview_exercises_file_and_administration_interfaces():
     workflow = (
         Path(__file__).parents[1] / ".github" / "workflows" / "preview-locale.yml"
@@ -90,6 +100,7 @@ def test_preview_exercises_file_and_administration_interfaces():
     assert "--file-project-uuid" in workflow
     assert "--preview-file tool/preview/fixtures/preview.csv" in workflow
     assert "--allowed-content-json build/file-preview.km" in workflow
+    assert "--review-manifest tool/review/pages.yml" in workflow
     assert "dsw-locale frontend-reference" in workflow
     assert "DSW_CLIENT_IMAGE" in workflow
 

@@ -6,15 +6,20 @@ import json
 import secrets
 import subprocess
 from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.review import (
+    ResolvedReviewScenario,
+    load_review_manifest,
+    review_routes,
+    review_scenarios,
+)
 from dsw_locale_tool.runtime import (
     classify_runtime_observations,
     load_allowed_content,
@@ -32,82 +37,6 @@ def _represent_string(dumper: yaml.SafeDumper, value: str) -> yaml.Node:
 
 
 _LiteralDumper.add_representer(str, _represent_string)
-
-
-@dataclass(frozen=True)
-class _InteractiveScenario:
-    name: str
-    route: str
-    trigger: str
-    ready: str
-    trigger_match: Literal["only", "first", "last"] = "only"
-
-
-def _authenticated_routes(project_uuid: str | None) -> dict[str, str]:
-    routes = {
-        "dashboard": "/",
-        "projects": "/projects",
-        "locales": "/locales",
-        "project-documents": "/project-documents",
-        "settings-organization": "/settings/organization",
-        "settings-authentication": "/settings/authentication",
-        "settings-open-id": "/settings/open-id",
-        "settings-open-id-create": "/settings/open-id/create",
-    }
-    if project_uuid:
-        routes.update(
-            {
-                "questionnaire": f"/projects/{project_uuid}",
-                "project-settings": f"/projects/{project_uuid}/settings",
-                "questionnaire-documents": f"/projects/{project_uuid}/documents",
-            }
-        )
-    return routes
-
-
-def _interactive_scenarios(project_uuid: str | None) -> tuple[_InteractiveScenario, ...]:
-    scenarios = [
-        _InteractiveScenario(
-            name="openid-microsoft-advanced-form",
-            route="/settings/open-id/create",
-            trigger=".row.mt-4.mb-1 a.fw-bold",
-            ready=".border-start.border-5",
-        ),
-        _InteractiveScenario(
-            name="openid-custom-form",
-            route="/settings/open-id/create",
-            trigger=".nav-tabs .nav-link",
-            ready="#url",
-            trigger_match="last",
-        ),
-    ]
-    if not project_uuid:
-        return tuple(scenarios)
-    project_route = f"/projects/{project_uuid}"
-    scenarios.extend(
-        (
-            _InteractiveScenario(
-                name="project-share-dialog",
-                route=project_route,
-                trigger='[data-cy="project_detail_share-button"]',
-                ready='.modal.visible [data-cy="modal_project-share"]',
-            ),
-            _InteractiveScenario(
-                name="question-comment-panel",
-                route=project_route,
-                trigger='[data-cy="questionnaire_question-action_comment"]',
-                ready='[data-cy="comments_reply-form_input_new_public"]',
-                trigger_match="first",
-            ),
-            _InteractiveScenario(
-                name="project-delete-dialog",
-                route=f"{project_route}/settings",
-                trigger=".card.border-danger button.btn-outline-danger",
-                ready='.modal.visible [data-cy="modal_project-delete"]',
-            ),
-        )
-    )
-    return tuple(scenarios)
 
 
 def _validated_file_preview(
@@ -359,7 +288,7 @@ def _capture_interactive_scenario(
     page: Any,
     *,
     base_url: str,
-    scenario: _InteractiveScenario,
+    scenario: ResolvedReviewScenario,
     output_path: Path,
     report: dict[str, Any],
     observations: list[dict[str, str]],
@@ -483,6 +412,7 @@ def capture_preview(
     password: str,
     output: str | Path,
     locale_root: str | Path,
+    review_manifest: str | Path,
     project_uuid: str | None = None,
     file_project_uuid: str | None = None,
     preview_file: str | Path | None = None,
@@ -515,8 +445,10 @@ def capture_preview(
         "token": {"token": token, "expiresAt": expires_at},
         "v9": True,
     }
-    routes = _authenticated_routes(project_uuid)
-    scenarios = _interactive_scenarios(project_uuid)
+    manifest = load_review_manifest(review_manifest)
+    routes = review_routes(manifest, project_uuid, authenticated=True)
+    public_routes = review_routes(manifest, project_uuid, authenticated=False)
+    scenarios = review_scenarios(manifest, project_uuid)
 
     report: dict[str, Any] = {"schema_version": 1, "clientUrl": base_url, "screenshots": []}
     observations: list[dict[str, str]] = []
@@ -525,17 +457,18 @@ def capture_preview(
 
         public_context = browser.new_context(viewport={"width": 1440, "height": 1000})
         public_page = public_context.new_page()
-        public_page.goto(f"{base_url}/login", wait_until="domcontentloaded", timeout=60_000)
-        _wait_for_application(public_page)
-        _wait_for_page_available(public_page, "login")
-        _capture_page(
-            public_page,
-            name="login",
-            output_path=output_path,
-            report=report,
-            observations=observations,
-            full_page=True,
-        )
+        for name, route in public_routes.items():
+            public_page.goto(f"{base_url}{route}", wait_until="domcontentloaded", timeout=60_000)
+            _wait_for_application(public_page)
+            _wait_for_page_available(public_page, name)
+            _capture_page(
+                public_page,
+                name=name,
+                output_path=output_path,
+                report=report,
+                observations=observations,
+                full_page=True,
+            )
         public_context.close()
 
         context = browser.new_context(viewport={"width": 1440, "height": 1000})

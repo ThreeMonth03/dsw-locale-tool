@@ -9,6 +9,7 @@ instance or a long-lived frontend fork.
 
 - To translate UI text, open the {doc}`translator guide <translators>`.
 - To review a translation in a real DSW interface, open the {doc}`preview guide <preview>`.
+- To operate a browsable review-only DSW, open the {doc}`sandbox guide <review-sandbox>`.
 - To operate synchronization or releases, open the {doc}`maintainer guide <maintainers>`.
 - To install a released locale, open the {doc}`production guide <production>`.
 :::
@@ -20,6 +21,7 @@ instance or a long-lived frontend fork.
 architecture
 translators
 preview
+review-sandbox
 versions
 maintainers
 production
@@ -32,7 +34,8 @@ commands
 2. Missing or fuzzy source strings become blank Markdown translation forms.
 3. A contributor fills the Traditional Chinese block in one or more forms.
 4. CI validates placeholders, builds the locale, and renders a disposable DSW preview.
-5. A versioned installer image imports the approved locale through the DSW API.
+5. An isolated public sandbox can expose approved translated pages for interactive review.
+6. A versioned installer image imports the approved locale through the DSW API.
 
 When preview finds interface text that DSW has not connected to gettext, CI builds a minimal
 localizable client from the exact upstream release. The translation remains in the same Markdown

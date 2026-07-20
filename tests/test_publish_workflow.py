@@ -32,3 +32,14 @@ def test_publisher_is_scheduled_and_never_overwrites_a_tag():
     assert ".created == true and .enabled == true and .defaultLocale == true" in release
     assert ".created == false and .enabled == true and .defaultLocale == true" in release
     assert 'run: docker push "$IMAGE_REFERENCE"' in release
+
+
+def test_review_tool_publisher_creates_multi_arch_immutable_and_current_images():
+    publisher = (WORKFLOWS / "publish-review-tool.yml").read_text(encoding="utf-8")
+
+    assert "file: docker/review/Dockerfile" in publisher
+    assert "platforms: linux/amd64,linux/arm64" in publisher
+    assert "dsw-review-tool:git-${GITHUB_SHA::12}" in publisher
+    assert "dsw-review-tool:main" in publisher
+    assert "Smoke test published image" in publisher
+    assert "review_site/index.html" in publisher

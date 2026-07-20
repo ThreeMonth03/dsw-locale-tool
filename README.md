@@ -12,6 +12,11 @@ Translation content and automation are kept in separate repositories:
 Start with the [documentation](https://www.threemonth03.com/dsw-locale-tool/). Translators do not
 need to install this project or edit code.
 
+Maintainers can also run an isolated, browsable
+[public review sandbox](https://www.threemonth03.com/dsw-locale-tool/review-sandbox.html). It exposes
+approved DSW pages backed only by disposable sample data and blocks application writes at the
+gateway.
+
 ## Development
 
 ```console

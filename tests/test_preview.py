@@ -10,14 +10,15 @@ import yaml
 
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.preview import (
-    _authenticated_routes,
-    _interactive_scenarios,
     _user_content,
     _validated_file_preview,
     _wait_for_application,
     _wait_for_page_available,
     generate_preview_config,
 )
+from dsw_locale_tool.review import load_review_manifest, review_routes, review_scenarios
+
+REVIEW_MANIFEST = Path(__file__).parents[1] / "review" / "pages.yml"
 
 
 class FakeLocator:
@@ -118,8 +119,9 @@ def test_user_content_includes_display_name_parts():
 
 def test_project_preview_includes_static_and_interactive_states():
     project_uuid = "project-uuid"
+    manifest = load_review_manifest(REVIEW_MANIFEST)
 
-    assert _authenticated_routes(project_uuid) == {
+    assert review_routes(manifest, project_uuid, authenticated=True) == {
         "dashboard": "/",
         "projects": "/projects",
         "locales": "/locales",
@@ -132,7 +134,7 @@ def test_project_preview_includes_static_and_interactive_states():
         "project-settings": "/projects/project-uuid/settings",
         "questionnaire-documents": "/projects/project-uuid/documents",
     }
-    scenarios = _interactive_scenarios(project_uuid)
+    scenarios = review_scenarios(manifest, project_uuid)
     assert [scenario.name for scenario in scenarios] == [
         "openid-microsoft-advanced-form",
         "openid-custom-form",
@@ -146,7 +148,9 @@ def test_project_preview_includes_static_and_interactive_states():
 
 
 def test_preview_without_project_uses_application_routes_only():
-    assert _authenticated_routes(None) == {
+    manifest = load_review_manifest(REVIEW_MANIFEST)
+
+    assert review_routes(manifest, None, authenticated=True) == {
         "dashboard": "/",
         "projects": "/projects",
         "locales": "/locales",
@@ -156,7 +160,7 @@ def test_preview_without_project_uses_application_routes_only():
         "settings-open-id": "/settings/open-id",
         "settings-open-id-create": "/settings/open-id/create",
     }
-    assert [scenario.name for scenario in _interactive_scenarios(None)] == [
+    assert [scenario.name for scenario in review_scenarios(manifest, None)] == [
         "openid-microsoft-advanced-form",
         "openid-custom-form",
     ]

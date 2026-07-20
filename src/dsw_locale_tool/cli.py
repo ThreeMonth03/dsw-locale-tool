@@ -26,6 +26,7 @@ from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.release import bump_locale_version
+from dsw_locale_tool.review import prepare_review, verify_review_gateway
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
 from dsw_locale_tool.translation_tree import add_runtime_translation, refresh_translation_tree
 from dsw_locale_tool.versions import (
@@ -218,6 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
     capture_parser.add_argument("--output", type=Path, required=True)
     capture_parser.add_argument("--locale-root", type=Path, required=True)
+    capture_parser.add_argument("--review-manifest", type=Path, required=True)
     capture_parser.add_argument("--project-uuid")
     capture_parser.add_argument("--file-project-uuid")
     capture_parser.add_argument("--preview-file", type=Path)
@@ -234,6 +236,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Known non-UI text to exclude from runtime findings",
     )
+
+    prepare_review_parser = subparsers.add_parser(
+        "prepare-review", help="Seed an isolated DSW and generate its public review site"
+    )
+    prepare_review_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
+    prepare_review_parser.add_argument("--client-url", default=os.getenv("DSW_CLIENT_URL"))
+    prepare_review_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    prepare_review_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
+    prepare_review_parser.add_argument("--locale-bundle", type=Path, required=True)
+    prepare_review_parser.add_argument("--knowledge-model", type=Path, required=True)
+    prepare_review_parser.add_argument("--review-manifest", type=Path, required=True)
+    prepare_review_parser.add_argument("--output", type=Path, required=True)
+    prepare_review_parser.add_argument("--project-name", default="Translation Review")
+
+    verify_review_parser = subparsers.add_parser(
+        "verify-review", help="Verify that a public review gateway permits reads and denies writes"
+    )
+    verify_review_parser.add_argument("--origin", default=os.getenv("DSW_REVIEW_ORIGIN"))
+    verify_review_parser.add_argument(
+        "--email", default=os.getenv("DSW_ADMIN_EMAIL", "albert.einstein@example.com")
+    )
+    verify_review_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
     return parser
 
 
@@ -460,11 +486,36 @@ def run(arguments: argparse.Namespace) -> int:
             password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
             output=arguments.output,
             locale_root=arguments.locale_root,
+            review_manifest=arguments.review_manifest,
             project_uuid=arguments.project_uuid,
             file_project_uuid=arguments.file_project_uuid,
             preview_file=arguments.preview_file,
             allowed_content_paths=arguments.allowed_content_json,
             allowed_text=arguments.allow_text,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "prepare-review":
+        result = prepare_review(
+            api_url=_required(arguments.api_url, "DSW_API_URL"),
+            client_url=_required(arguments.client_url, "DSW_CLIENT_URL"),
+            email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
+            password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
+            locale_bundle=arguments.locale_bundle,
+            knowledge_model=arguments.knowledge_model,
+            manifest_path=arguments.review_manifest,
+            output=arguments.output,
+            project_name=arguments.project_name,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if arguments.command == "verify-review":
+        result = verify_review_gateway(
+            _required(arguments.origin, "DSW_REVIEW_ORIGIN"),
+            email=_required(arguments.email, "DSW_ADMIN_EMAIL"),
+            password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
