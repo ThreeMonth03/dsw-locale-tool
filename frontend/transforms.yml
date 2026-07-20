@@ -1,0 +1,13 @@
+schema_version: 1
+
+upstream_repository: https://github.com/ds-wizard/engine-frontend.git
+image_repository: ghcr.io/threemonth03/dsw-wizard-client
+
+transforms:
+  - id: openid-scopes-gettext
+    introduced_in: 4.31.0
+    path: app-wizard/elm/Wizard/Pages/Settings/OpenIdCreate/View.elm
+    before: >-
+      strong [] [ text "Scopes" ]
+    after: >-
+      strong [] [ text (gettext "Scopes" appState.locale) ]

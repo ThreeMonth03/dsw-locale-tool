@@ -32,15 +32,20 @@ Browser preview can find English UI text that is absent from the official POT. A
 uses the same Markdown form with a `runtime-only` identity. Synchronization converts it to a normal
 form when the source later appears upstream.
 
+Some text is absent because the frontend renders a literal string instead of calling gettext. The
+tool repository holds strict, version-bounded source transforms for those cases. A transform changes
+only the localization call; Traditional Chinese remains in the translation form. CI refuses a
+transform when the exact upstream source has changed.
+
 ## Installation model
 
-DSW serves locale content from the server. The production artifact is therefore a locale ZIP, and
-the installer image imports that ZIP through the DSW API. Official `wizard-client` and
-`wizard-server` images remain unchanged.
+DSW serves locale content from the server. The locale installer imports a locale ZIP through the DSW
+API. The official server image remains unchanged. Deployments use the official client unless the
+matching release needs a source transform; in that case only the client image is replaced.
 
 ```text
-browser -> wizard-client -> wizard-server -> installed locale
-                                      ^
-                                      |
-                              one-shot installer
+browser -> official or localizable client -> wizard-server -> installed locale
+                                                         ^
+                                                         |
+                                                 one-shot installer
 ```

@@ -6,9 +6,10 @@ available for investigation and release preparation.
 ## Synchronize a release branch
 
 ```console
+VERSION_KEY=vX.Y
 dsw-locale sync-upstream \
   --config translation-config.yml \
-  --version v4.32 \
+  --version "$VERSION_KEY" \
   --output .
 
 dsw-locale refresh-tree --root .
@@ -71,3 +72,10 @@ dsw-locale add-runtime \
   --source "English text observed in DSW" \
   --translation "在 DSW 中看到的英文文字"
 ```
+
+If preview still renders a completed runtime-only translation in English, inspect the matching
+`engine-frontend` release. Text that bypasses gettext needs an exact transform in
+`frontend/transforms.yml`. The **Publish localizable DSW clients** workflow checks out the
+configured application release, applies the transform, runs upstream tests, builds both supported
+container architectures, and smoke-tests the immutable image. Translation content remains in the
+translation repository.

@@ -33,6 +33,7 @@ jobs:
     timeout-minutes: 25
     env:
       DSW_VERSION: ${{ inputs.dsw_image_tag }}
+      DSW_CLIENT_IMAGE: datastewardshipwizard/wizard-client:${{ inputs.dsw_image_tag }}
       DSW_API_URL: http://localhost:3000/wizard-api
       DSW_CLIENT_URL: http://localhost:8080/wizard
       DSW_ADMIN_EMAIL: albert.einstein@example.com
@@ -68,6 +69,20 @@ jobs:
         run: |
           python -m pip install './tool[preview]'
           python -m playwright install --with-deps chromium
+
+      - name: Resolve localizable client image
+        env:
+          CONFIG_VERSION: ${{ inputs.config_version }}
+        run: |
+          app_version=$(dsw-locale release-info \
+            --config locale/translation-config.yml \
+            --version "$CONFIG_VERSION" \
+            | jq --raw-output .recommended_app_version)
+          client_image=$(dsw-locale frontend-reference \
+            --manifest tool/frontend/transforms.yml \
+            --version "$app_version" \
+            | jq --raw-output .image)
+          echo "DSW_CLIENT_IMAGE=$client_image" >> "$GITHUB_ENV"
 
       - name: Build locale package
         run: |

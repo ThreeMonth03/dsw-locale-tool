@@ -22,10 +22,11 @@ make check
 ## Common commands
 
 ```console
-dsw-locale sync-upstream --config translation-config.yml --version v4.32 --output .
+VERSION_KEY=vX.Y
+dsw-locale sync-upstream --config translation-config.yml --version "$VERSION_KEY" --output .
 dsw-locale refresh-tree --root .
 dsw-locale audit --root . --report-dir reports
-dsw-locale build-source --config translation-config.yml --version v4.32 --root . --output build/locale
+dsw-locale build-source --config translation-config.yml --version "$VERSION_KEY" --root . --output build/locale
 ```
 
 See the [CLI reference](docs/commands.md) for every command.

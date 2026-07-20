@@ -8,7 +8,8 @@ authentication settings, and OpenID configuration.
 
 ```console
 dsw-locale preview-config --output preview/runtime/application.yml
-DSW_VERSION=4.32 docker compose -f preview/docker-compose.yml up -d
+DSW_VERSION=X.Y DSW_CLIENT_IMAGE=datastewardshipwizard/wizard-client:X.Y \
+  docker compose -f preview/docker-compose.yml up -d
 ```
 
 If ports 3000 or 8080 are already used, keep the three URLs aligned:
@@ -17,7 +18,8 @@ If ports 3000 or 8080 are already used, keep the three URLs aligned:
 dsw-locale preview-config \
   --output preview/runtime/application.yml \
   --client-url http://localhost:8180/wizard
-DSW_VERSION=4.32 DSW_SERVER_PORT=3100 DSW_CLIENT_PORT=8180 \
+DSW_VERSION=X.Y DSW_CLIENT_IMAGE=datastewardshipwizard/wizard-client:X.Y \
+  DSW_SERVER_PORT=3100 DSW_CLIENT_PORT=8180 \
   docker compose -f preview/docker-compose.yml up -d
 ```
 

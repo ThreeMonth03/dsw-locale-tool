@@ -1,0 +1,3 @@
+services:
+  client:
+    image: "${DSW_CLIENT_IMAGE:?Set DSW_CLIENT_IMAGE to an immutable localizable client image}"

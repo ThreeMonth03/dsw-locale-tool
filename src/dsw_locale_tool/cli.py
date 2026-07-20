@@ -16,6 +16,11 @@ from dsw_locale_tool.changes import validate_translation_pr
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.frontend import (
+    frontend_image_reference,
+    load_frontend_manifest,
+    localize_frontend,
+)
 from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
@@ -82,6 +87,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     release_info_parser.add_argument("--config", type=Path, required=True)
     release_info_parser.add_argument("--version", required=True)
+
+    frontend_reference_parser = subparsers.add_parser(
+        "frontend-reference",
+        help="Resolve the localizable wizard-client image for an application version",
+    )
+    frontend_reference_parser.add_argument("--manifest", type=Path, required=True)
+    frontend_reference_parser.add_argument("--version", required=True)
+
+    localize_frontend_parser = subparsers.add_parser(
+        "localize-frontend",
+        help="Expose confirmed hardcoded frontend text to gettext",
+    )
+    localize_frontend_parser.add_argument("--manifest", type=Path, required=True)
+    localize_frontend_parser.add_argument("--version", required=True)
+    localize_frontend_parser.add_argument("--source-root", type=Path, required=True)
+    localize_frontend_parser.add_argument("--report", type=Path)
 
     bump_release_parser = subparsers.add_parser(
         "bump-release", help="Increase one immutable locale patch version"
@@ -298,6 +319,31 @@ def run(arguments: argparse.Namespace) -> int:
                 separators=(",", ":"),
             )
         )
+        return 0
+
+    if arguments.command == "frontend-reference":
+        print(
+            json.dumps(
+                frontend_image_reference(
+                    load_frontend_manifest(arguments.manifest), arguments.version
+                ),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        return 0
+
+    if arguments.command == "localize-frontend":
+        report = localize_frontend(
+            load_frontend_manifest(arguments.manifest),
+            arguments.version,
+            arguments.source_root,
+        )
+        payload = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+        if arguments.report:
+            arguments.report.parent.mkdir(parents=True, exist_ok=True)
+            arguments.report.write_text(payload, encoding="utf-8")
+        print(payload, end="")
         return 0
 
     if arguments.command == "bump-release":

@@ -52,11 +52,13 @@ def test_maintained_matrix_contains_live_versions_in_release_order():
                 "config_version": "v4.9",
                 "translation_ref": "release/v4.9",
                 "dsw_image_tag": "4.9",
+                "recommended_app_version": "4.9.0",
             },
             {
                 "config_version": "v4.32",
                 "translation_ref": "release/v4.32",
                 "dsw_image_tag": "4.32",
+                "recommended_app_version": "4.32.0",
             },
         ]
     }
