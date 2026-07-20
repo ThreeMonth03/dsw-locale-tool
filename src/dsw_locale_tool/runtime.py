@@ -38,6 +38,8 @@ BUILTIN_ALLOWED_TEXT = {
     "Data Stewardship Wizard",
     "Default English locale for Wizard UI",
     "English",
+    "#fff",
+    "fab fa-openid",
     "Markdown",
     "OpenID",
     "ORCID",

@@ -28,6 +28,11 @@ on:
         required: false
         default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/basic-questionnaire-test-km.json
         type: string
+      file_knowledge_model_url:
+        description: Optional KM JSON URL used to exercise project file screens
+        required: false
+        default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/file-km.json
+        type: string
 
 permissions:
   contents: read
@@ -45,3 +50,4 @@ jobs:
       config_version: ${{ inputs.config_version }}
       dsw_image_tag: ${{ inputs.dsw_image_tag }}
       knowledge_model_url: ${{ inputs.knowledge_model_url }}
+      file_knowledge_model_url: ${{ inputs.file_knowledge_model_url }}

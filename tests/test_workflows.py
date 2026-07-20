@@ -73,3 +73,15 @@ def test_locale_pr_validation_exposes_preview_coordinates():
     assert "value: ${{ jobs.validate.outputs.dsw_image_tag }}" in workflow
     assert "value: ${{ jobs.validate.outputs.translation_changed }}" in workflow
     assert "dsw-locale refresh-tree --root locale" in workflow
+
+
+def test_preview_exercises_file_and_administration_interfaces():
+    workflow = (
+        Path(__file__).parents[1] / ".github" / "workflows" / "preview-locale.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "file_knowledge_model_url" in workflow
+    assert "cypress/fixtures/file-km.json" in workflow
+    assert "--file-project-uuid" in workflow
+    assert "--preview-file tool/preview/fixtures/preview.csv" in workflow
+    assert "--allowed-content-json build/file-preview.km" in workflow

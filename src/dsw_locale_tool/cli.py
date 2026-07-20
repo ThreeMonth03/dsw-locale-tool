@@ -198,6 +198,8 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--output", type=Path, required=True)
     capture_parser.add_argument("--locale-root", type=Path, required=True)
     capture_parser.add_argument("--project-uuid")
+    capture_parser.add_argument("--file-project-uuid")
+    capture_parser.add_argument("--preview-file", type=Path)
     capture_parser.add_argument(
         "--allowed-content-json",
         action="append",
@@ -413,6 +415,8 @@ def run(arguments: argparse.Namespace) -> int:
             output=arguments.output,
             locale_root=arguments.locale_root,
             project_uuid=arguments.project_uuid,
+            file_project_uuid=arguments.file_project_uuid,
+            preview_file=arguments.preview_file,
             allowed_content_paths=arguments.allowed_content_json,
             allowed_text=arguments.allow_text,
         )

@@ -19,6 +19,10 @@ on:
         required: false
         type: string
         default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/basic-questionnaire-test-km.json
+      file_knowledge_model_url:
+        required: false
+        type: string
+        default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/file-km.json
 
 permissions:
   contents: read
@@ -103,6 +107,10 @@ jobs:
         if: inputs.knowledge_model_url != ''
         run: curl --fail --location "${{ inputs.knowledge_model_url }}" --output build/preview.km
 
+      - name: Download file preview Knowledge Model
+        if: inputs.file_knowledge_model_url != ''
+        run: curl --fail --location "${{ inputs.file_knowledge_model_url }}" --output build/file-preview.km
+
       - name: Create questionnaire
         id: questionnaire
         if: inputs.knowledge_model_url != ''
@@ -112,21 +120,41 @@ jobs:
             --project-name "Locale Preview")
           echo "project_uuid=$project_uuid" >> "$GITHUB_OUTPUT"
 
+      - name: Create file questionnaire
+        id: file-questionnaire
+        if: inputs.file_knowledge_model_url != ''
+        run: |
+          project_uuid=$(dsw-locale seed-project \
+            --knowledge-model build/file-preview.km \
+            --project-name "File Locale Preview")
+          echo "project_uuid=$project_uuid" >> "$GITHUB_OUTPUT"
+
       - name: Capture translated pages
         env:
           PROJECT_UUID: ${{ steps.questionnaire.outputs.project_uuid }}
+          FILE_PROJECT_UUID: ${{ steps.file-questionnaire.outputs.project_uuid }}
         run: |
           arguments=(
             capture-preview
             --output preview-artifact
             --locale-root locale
             --allow-text "Locale Preview"
+            --allow-text "File Locale Preview"
           )
           if [ -n "$PROJECT_UUID" ]; then
             arguments+=(--project-uuid "$PROJECT_UUID")
           fi
           if [ -f build/preview.km ]; then
             arguments+=(--allowed-content-json build/preview.km)
+          fi
+          if [ -n "$FILE_PROJECT_UUID" ]; then
+            arguments+=(
+              --file-project-uuid "$FILE_PROJECT_UUID"
+              --preview-file tool/preview/fixtures/preview.csv
+            )
+          fi
+          if [ -f build/file-preview.km ]; then
+            arguments+=(--allowed-content-json build/file-preview.km)
           fi
           dsw-locale "${arguments[@]}"
 

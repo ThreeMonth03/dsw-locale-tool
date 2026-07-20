@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -40,7 +40,7 @@ class _InteractiveScenario:
     route: str
     trigger: str
     ready: str
-    trigger_first: bool = False
+    trigger_match: Literal["only", "first", "last"] = "only"
 
 
 def _authenticated_routes(project_uuid: str | None) -> dict[str, str]:
@@ -48,42 +48,74 @@ def _authenticated_routes(project_uuid: str | None) -> dict[str, str]:
         "dashboard": "/",
         "projects": "/projects",
         "locales": "/locales",
+        "project-documents": "/project-documents",
+        "settings-organization": "/settings/organization",
+        "settings-authentication": "/settings/authentication",
+        "settings-open-id": "/settings/open-id",
+        "settings-open-id-create": "/settings/open-id/create",
     }
     if project_uuid:
         routes.update(
             {
                 "questionnaire": f"/projects/{project_uuid}",
                 "project-settings": f"/projects/{project_uuid}/settings",
+                "questionnaire-documents": f"/projects/{project_uuid}/documents",
             }
         )
     return routes
 
 
 def _interactive_scenarios(project_uuid: str | None) -> tuple[_InteractiveScenario, ...]:
+    scenarios = [
+        _InteractiveScenario(
+            name="openid-custom-form",
+            route="/settings/open-id/create",
+            trigger=".nav-tabs .nav-link",
+            ready="#url",
+            trigger_match="last",
+        )
+    ]
     if not project_uuid:
-        return ()
+        return tuple(scenarios)
     project_route = f"/projects/{project_uuid}"
-    return (
-        _InteractiveScenario(
-            name="project-share-dialog",
-            route=project_route,
-            trigger='[data-cy="project_detail_share-button"]',
-            ready='.modal.visible [data-cy="modal_project-share"]',
-        ),
-        _InteractiveScenario(
-            name="question-comment-panel",
-            route=project_route,
-            trigger='[data-cy="questionnaire_question-action_comment"]',
-            ready='[data-cy="comments_reply-form_input_new_public"]',
-            trigger_first=True,
-        ),
-        _InteractiveScenario(
-            name="project-delete-dialog",
-            route=f"{project_route}/settings",
-            trigger=".card.border-danger button.btn-outline-danger",
-            ready='.modal.visible [data-cy="modal_project-delete"]',
-        ),
+    scenarios.extend(
+        (
+            _InteractiveScenario(
+                name="project-share-dialog",
+                route=project_route,
+                trigger='[data-cy="project_detail_share-button"]',
+                ready='.modal.visible [data-cy="modal_project-share"]',
+            ),
+            _InteractiveScenario(
+                name="question-comment-panel",
+                route=project_route,
+                trigger='[data-cy="questionnaire_question-action_comment"]',
+                ready='[data-cy="comments_reply-form_input_new_public"]',
+                trigger_match="first",
+            ),
+            _InteractiveScenario(
+                name="project-delete-dialog",
+                route=f"{project_route}/settings",
+                trigger=".card.border-danger button.btn-outline-danger",
+                ready='.modal.visible [data-cy="modal_project-delete"]',
+            ),
+        )
     )
+    return tuple(scenarios)
+
+
+def _validated_file_preview(
+    file_project_uuid: str | None,
+    preview_file: str | Path | None,
+) -> Path | None:
+    if bool(file_project_uuid) != (preview_file is not None):
+        raise LocaleToolError("File preview requires both file_project_uuid and preview_file")
+    if preview_file is None:
+        return None
+    path = Path(preview_file)
+    if not path.is_file():
+        raise LocaleToolError(f"Preview file does not exist: {path}")
+    return path
 
 
 def generate_preview_config(output: str | Path, *, client_url: str) -> Path:
@@ -215,6 +247,10 @@ def _collect_visible_text(page: Any, route: str) -> list[dict[str, str]]:
             return `body > ${parts.join(" > ")}`;
           };
           const records = [];
+          const textCoveredByParent = new WeakSet();
+          const inlineTags = new Set([
+            "A", "B", "BR", "CODE", "EM", "I", "MARK", "SMALL", "SPAN", "STRONG", "SUB", "SUP"
+          ]);
           const add = (element, kind, value) => {
             const text = normalize(value || "");
             if (text) {
@@ -223,8 +259,24 @@ def _collect_visible_text(page: Any, route: str) -> list[dict[str, str]]:
           };
           for (const element of document.body.querySelectorAll("*")) {
             if (!visible(element)) continue;
-            for (const node of element.childNodes) {
-              if (node.nodeType === Node.TEXT_NODE) add(element, "text", node.textContent);
+            if (!textCoveredByParent.has(element)) {
+              const textNodes = [...element.childNodes].filter(
+                (node) => node.nodeType === Node.TEXT_NODE && normalize(node.textContent || "")
+              );
+              const children = [...element.children];
+              const inlineComposite = textNodes.length > 0 && children.length > 0 &&
+                children.every((child) => inlineTags.has(child.tagName));
+              if (inlineComposite) {
+                add(element, "text", element.innerText);
+                for (const child of children) {
+                  textCoveredByParent.add(child);
+                  for (const descendant of child.querySelectorAll("*")) {
+                    textCoveredByParent.add(descendant);
+                  }
+                }
+              } else {
+                for (const node of textNodes) add(element, "text", node.textContent);
+              }
             }
             for (const attribute of ["placeholder", "aria-label", "title"]) {
               if (element.hasAttribute(attribute)) {
@@ -283,6 +335,20 @@ def _capture_page(
     report["screenshots"].append({"name": name, "url": page.url, "file": screenshot_path.name})
 
 
+def _wait_for_stable_render(locator: Any) -> None:
+    locator.evaluate(
+        """
+        async (element) => {
+          const root = element.closest(".modal") || element;
+          const animations = root.getAnimations({ subtree: true });
+          await Promise.all(
+            animations.map((animation) => animation.finished.catch(() => undefined))
+          );
+        }
+        """
+    )
+
+
 def _capture_interactive_scenario(
     page: Any,
     *,
@@ -300,24 +366,16 @@ def _capture_interactive_scenario(
     _wait_for_application(page)
     _wait_for_page_available(page, scenario.name)
     trigger = page.locator(scenario.trigger)
-    if scenario.trigger_first:
+    if scenario.trigger_match == "first":
         trigger = trigger.first
+    elif scenario.trigger_match == "last":
+        trigger = trigger.last
     try:
         trigger.scroll_into_view_if_needed(timeout=30_000)
         trigger.click(timeout=30_000)
         ready = page.locator(scenario.ready)
         ready.wait_for(state="visible", timeout=30_000)
-        ready.evaluate(
-            """
-            async (element) => {
-              const root = element.closest(".modal") || element;
-              const animations = root.getAnimations({ subtree: true });
-              await Promise.all(
-                animations.map((animation) => animation.finished.catch(() => undefined))
-              );
-            }
-            """
-        )
+        _wait_for_stable_render(ready)
     except Exception as error:  # Playwright timeout types are optional at import time.
         raise LocaleToolError(
             f"Cannot capture {scenario.name}: interactive control was unavailable: {page.url}"
@@ -332,6 +390,85 @@ def _capture_interactive_scenario(
     )
 
 
+def _capture_file_scenarios(
+    page: Any,
+    *,
+    base_url: str,
+    project_uuid: str,
+    preview_file: Path,
+    output_path: Path,
+    report: dict[str, Any],
+    observations: list[dict[str, str]],
+) -> None:
+    project_route = f"/projects/{project_uuid}"
+    page.goto(f"{base_url}{project_route}", wait_until="domcontentloaded", timeout=60_000)
+    _wait_for_application(page)
+    _wait_for_page_available(page, "file-questionnaire")
+
+    try:
+        page.locator('[data-cy="file-upload"]').click(timeout=30_000)
+        upload_modal = page.locator('.modal.visible [data-cy="modal_file-upload"]')
+        upload_modal.wait_for(state="visible", timeout=30_000)
+        _wait_for_stable_render(upload_modal)
+        _capture_page(
+            page,
+            name="file-upload-dialog",
+            output_path=output_path,
+            report=report,
+            observations=observations,
+            full_page=False,
+        )
+
+        with page.expect_file_chooser(timeout=30_000) as file_chooser:
+            upload_modal.locator(".dropzone button").click(timeout=30_000)
+        file_chooser.value.set_files(str(preview_file.resolve()))
+        upload_modal.locator('[data-cy="modal_action-button"]').click(timeout=30_000)
+
+        delete_button = page.locator('[data-cy="file-delete"]').first
+        delete_button.wait_for(state="visible", timeout=30_000)
+        _capture_page(
+            page,
+            name="file-questionnaire-uploaded",
+            output_path=output_path,
+            report=report,
+            observations=observations,
+            full_page=True,
+        )
+
+        delete_button.click(timeout=30_000)
+        delete_modal = page.locator('.modal.visible [data-cy="modal_delete-file"]')
+        delete_modal.wait_for(state="visible", timeout=30_000)
+        _wait_for_stable_render(delete_modal)
+        _capture_page(
+            page,
+            name="file-delete-dialog",
+            output_path=output_path,
+            report=report,
+            observations=observations,
+            full_page=False,
+        )
+
+        page.goto(f"{base_url}/project-files", wait_until="domcontentloaded", timeout=60_000)
+        _wait_for_application(page)
+        _wait_for_page_available(page, "project-files")
+        page.get_by_text(preview_file.name, exact=True).first.wait_for(
+            state="visible", timeout=30_000
+        )
+    except Exception as error:  # Playwright timeout types are optional at import time.
+        raise LocaleToolError(
+            f"Cannot capture file preview: interactive control was unavailable: {page.url}"
+        ) from error
+
+    _capture_page(
+        page,
+        name="project-files",
+        output_path=output_path,
+        report=report,
+        observations=observations,
+        full_page=True,
+    )
+
+
 def capture_preview(
     *,
     client_url: str,
@@ -341,10 +478,13 @@ def capture_preview(
     output: str | Path,
     locale_root: str | Path,
     project_uuid: str | None = None,
+    file_project_uuid: str | None = None,
+    preview_file: str | Path | None = None,
     allowed_content_paths: Iterable[str | Path] = (),
     allowed_text: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Capture public and authenticated pages from a locale-enabled DSW stack."""
+    file_path = _validated_file_preview(file_project_uuid, preview_file)
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as error:
@@ -425,11 +565,30 @@ def capture_preview(
                 observations=observations,
             )
             scenario_context.close()
+
+        if file_project_uuid and file_path:
+            file_context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            file_page = file_context.new_page()
+            file_page.add_init_script(
+                f"window.localStorage.setItem('session/wizard', {session_json});"
+            )
+            _capture_file_scenarios(
+                file_page,
+                base_url=base_url,
+                project_uuid=file_project_uuid,
+                preview_file=file_path,
+                output_path=output_path,
+                report=report,
+                observations=observations,
+            )
+            file_context.close()
         browser.close()
 
     allowed = load_allowed_content(
         allowed_content_paths,
-        set(allowed_text) | _user_content(user),
+        set(allowed_text)
+        | _user_content(user)
+        | ({file_path.name} if file_path is not None else set()),
     )
     runtime_report = classify_runtime_observations(
         observations,
