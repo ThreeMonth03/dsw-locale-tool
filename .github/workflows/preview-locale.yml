@@ -6,6 +6,9 @@ on:
       translation_repository:
         required: true
         type: string
+      translation_control_repository:
+        required: true
+        type: string
       translation_control_ref:
         required: true
         type: string
@@ -57,7 +60,7 @@ jobs:
       - name: Check out translation control configuration
         uses: actions/checkout@v6
         with:
-          repository: ${{ inputs.translation_repository }}
+          repository: ${{ inputs.translation_control_repository }}
           ref: ${{ inputs.translation_control_ref }}
           path: control
           persist-credentials: false
