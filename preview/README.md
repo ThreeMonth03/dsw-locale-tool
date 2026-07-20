@@ -3,7 +3,8 @@
 This Compose file is for CI screenshots only. It creates disposable PostgreSQL and MinIO
 volumes, binds the DSW server and client to localhost, and reads a generated
 `runtime/application.yml`. The screenshot workflow covers the main pages plus project settings,
-sharing, comments, and the project deletion confirmation.
+sharing, comments, Documents, project files, file upload and deletion, organization and
+authentication settings, and OpenID configuration.
 
 ```console
 dsw-locale preview-config --output preview/runtime/application.yml

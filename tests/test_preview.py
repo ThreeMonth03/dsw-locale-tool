@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from dsw_locale_tool.preview import (
     _authenticated_routes,
     _interactive_scenarios,
     _user_content,
+    _validated_file_preview,
     _wait_for_application,
     _wait_for_page_available,
     generate_preview_config,
@@ -121,16 +123,25 @@ def test_project_preview_includes_static_and_interactive_states():
         "dashboard": "/",
         "projects": "/projects",
         "locales": "/locales",
+        "project-documents": "/project-documents",
+        "settings-organization": "/settings/organization",
+        "settings-authentication": "/settings/authentication",
+        "settings-open-id": "/settings/open-id",
+        "settings-open-id-create": "/settings/open-id/create",
         "questionnaire": "/projects/project-uuid",
         "project-settings": "/projects/project-uuid/settings",
+        "questionnaire-documents": "/projects/project-uuid/documents",
     }
     scenarios = _interactive_scenarios(project_uuid)
     assert [scenario.name for scenario in scenarios] == [
+        "openid-custom-form",
         "project-share-dialog",
         "question-comment-panel",
         "project-delete-dialog",
     ]
     assert all(scenario.ready for scenario in scenarios)
+    assert scenarios[0].trigger_match == "last"
+    assert scenarios[2].trigger_match == "first"
 
 
 def test_preview_without_project_uses_application_routes_only():
@@ -138,5 +149,23 @@ def test_preview_without_project_uses_application_routes_only():
         "dashboard": "/",
         "projects": "/projects",
         "locales": "/locales",
+        "project-documents": "/project-documents",
+        "settings-organization": "/settings/organization",
+        "settings-authentication": "/settings/authentication",
+        "settings-open-id": "/settings/open-id",
+        "settings-open-id-create": "/settings/open-id/create",
     }
-    assert _interactive_scenarios(None) == ()
+    assert [scenario.name for scenario in _interactive_scenarios(None)] == ["openid-custom-form"]
+
+
+def test_file_preview_requires_a_project_and_existing_file(tmp_path):
+    preview_file = tmp_path / "preview.csv"
+    preview_file.write_text("header\nvalue\n", encoding="utf-8")
+
+    assert _validated_file_preview("project-uuid", preview_file) == preview_file
+    with pytest.raises(LocaleToolError, match="requires both"):
+        _validated_file_preview("project-uuid", None)
+    with pytest.raises(LocaleToolError, match="requires both"):
+        _validated_file_preview(None, preview_file)
+    with pytest.raises(LocaleToolError, match="does not exist"):
+        _validated_file_preview("project-uuid", Path("missing.csv"))

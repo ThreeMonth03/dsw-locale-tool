@@ -98,7 +98,11 @@ dsw-locale seed-project --knowledge-model preview.km --project-name "Locale Prev
 dsw-locale capture-preview \
   --output preview-artifact \
   --locale-root ../dsw-ui-locales-zh_Hant \
-  --allowed-content-json preview.km
+  --project-uuid "$PROJECT_UUID" \
+  --file-project-uuid "$FILE_PROJECT_UUID" \
+  --preview-file preview/fixtures/preview.csv \
+  --allowed-content-json preview.km \
+  --allowed-content-json file-preview.km
 ```
 
 Run `dsw-locale COMMAND --help` for the complete option list.
