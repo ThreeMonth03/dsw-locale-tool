@@ -41,6 +41,7 @@ BUILTIN_ALLOWED_TEXT = {
     "#fff",
     "fab fa-openid",
     "Markdown",
+    "Microsoft",
     "OpenID",
     "ORCID",
     "URL",
