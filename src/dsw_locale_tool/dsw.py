@@ -27,6 +27,24 @@ def read_bundle_metadata(bundle: str | Path) -> dict[str, Any]:
         raise LocaleToolError(f"Invalid DSW locale bundle {bundle_path}: {error}") from error
 
 
+def read_document_template_metadata(bundle: str | Path) -> dict[str, Any]:
+    """Read ``template/template.json`` from a released template bundle."""
+
+    bundle_path = Path(bundle)
+    if not bundle_path.is_file():
+        raise LocaleToolError(f"Document template bundle does not exist: {bundle_path}")
+    try:
+        with zipfile.ZipFile(bundle_path) as archive:
+            metadata = json.loads(archive.read("template/template.json"))
+    except (KeyError, OSError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+        raise LocaleToolError(
+            f"Invalid DSW document template bundle {bundle_path}: {error}"
+        ) from error
+    if not isinstance(metadata, dict) or not metadata.get("id"):
+        raise LocaleToolError(f"Document template bundle has no package ID: {bundle_path}")
+    return metadata
+
+
 class DswApi:
     """Authenticated DSW API operations needed by preview and deployment."""
 
@@ -228,8 +246,10 @@ class DswApi:
         knowledge_model: str | Path,
         *,
         project_name: str = "Locale Preview",
+        document_template: str | Path | None = None,
+        document_format_uuid: str | None = None,
     ) -> str:
-        """Import a KM JSON bundle and create a private project for UI screenshots."""
+        """Import translated content and create a private preview project."""
         package_path = Path(knowledge_model)
         if not package_path.is_file():
             raise LocaleToolError(f"Knowledge Model package does not exist: {package_path}")
@@ -245,6 +265,15 @@ class DswApi:
         if not package_uuid:
             raise LocaleToolError("DSW Knowledge Model import did not return a UUID")
 
+        template = None
+        if document_template is not None:
+            if not document_format_uuid:
+                raise LocaleToolError("A document format UUID is required with a document template")
+            template = self.install_document_template(
+                document_template,
+                format_uuid=document_format_uuid,
+            )
+
         project = self._request(
             "POST",
             "/projects",
@@ -254,11 +283,63 @@ class DswApi:
                 "visibility": "PrivateProjectVisibility",
                 "sharing": "RestrictedProjectSharing",
                 "questionTagUuids": [],
-                "documentTemplateUuid": None,
-                "formatUuid": None,
+                "documentTemplateUuid": template["uuid"] if template else None,
+                "formatUuid": template["formatUuid"] if template else None,
             },
         ).json()
         project_uuid = project.get("uuid")
         if not project_uuid:
             raise LocaleToolError("DSW project creation did not return a UUID")
+        if template:
+            document = self._request(
+                "POST",
+                "/documents",
+                json={
+                    "name": f"{template['name']} Preview",
+                    "projectUuid": project_uuid,
+                    "documentTemplateUuid": template["uuid"],
+                    "formatUuid": template["formatUuid"],
+                },
+            ).json()
+            if not document.get("uuid"):
+                raise LocaleToolError("DSW document creation did not return a UUID")
         return project_uuid
+
+    def install_document_template(
+        self,
+        bundle: str | Path,
+        *,
+        format_uuid: str,
+    ) -> dict[str, str]:
+        """Import a released template bundle and select one declared format."""
+
+        bundle_path = Path(bundle)
+        metadata = read_document_template_metadata(bundle_path)
+        declared_formats = {
+            item.get("uuid") for item in metadata.get("formats", []) if isinstance(item, dict)
+        }
+        if format_uuid not in declared_formats:
+            raise LocaleToolError(
+                f"Document format {format_uuid} is not declared by {metadata['id']}"
+            )
+        with bundle_path.open("rb") as bundle_file:
+            template = self._request(
+                "POST",
+                "/document-templates/bundle",
+                files={
+                    "file": (
+                        bundle_path.name,
+                        bundle_file,
+                        "application/zip",
+                    )
+                },
+            ).json()
+        template_uuid = template.get("uuid") if isinstance(template, dict) else None
+        if not template_uuid:
+            raise LocaleToolError("DSW document template import did not return a UUID")
+        return {
+            "id": str(metadata["id"]),
+            "name": str(metadata.get("name") or metadata["id"]),
+            "uuid": str(template_uuid),
+            "formatUuid": format_uuid,
+        }

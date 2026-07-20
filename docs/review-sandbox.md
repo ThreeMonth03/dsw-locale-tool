@@ -23,10 +23,11 @@ Each run:
 
 1. validates and packages one exact translation revision;
 2. selects the official client for that DSW release;
-3. starts a private DSW, database, and object store;
-4. exposes only the review gateway through a random HTTPS URL;
-5. adds the URL and release metadata to the translation pull request;
-6. removes all containers and data when the review ends.
+3. downloads and verifies the translated Knowledge Model and document template for that release;
+4. starts a private DSW, database, and object store;
+5. exposes only the review gateway through a random HTTPS URL;
+6. adds the URL and release metadata to the translation pull request;
+7. removes all containers and data when the review ends.
 
 The default lifetime is 30 minutes without browser activity, with an absolute maximum of 180
 minutes. Opening a page and interacting with the interface sends a rate-limited activity signal to
@@ -51,8 +52,8 @@ The gateway applies these rules before a request reaches DSW:
 - UI routes absent from `review/pages.yml` return HTTP 404.
 
 The browser displays a permanent review banner and disables links to unapproved routes. This is
-navigation guidance; the gateway remains the security boundary. Use only synthetic Knowledge Model
-and project content because authenticated read requests can expose all data in the isolated DSW.
+navigation guidance; the gateway remains the security boundary. Use only public review content
+because authenticated read requests can expose all data in the isolated DSW.
 
 ## Run on a Docker host
 
@@ -61,7 +62,7 @@ one loopback port for each concurrently running sandbox. Clone this repository o
 obtain:
 
 - the locale ZIP built from the translation branch;
-- a synthetic Knowledge Model JSON package;
+- the translated Knowledge Model and document template bundles configured for the DSW release;
 - the official DSW client image matching the locale release;
 - a published [`dsw-review-tool` image from
   GHCR](https://github.com/ThreeMonth03/dsw-locale-tool/pkgs/container/dsw-review-tool).
@@ -82,8 +83,8 @@ Start or replace the sandbox:
 ```
 
 The launcher removes the previous disposable data for that Compose project, creates fresh secrets,
-installs the locale, imports the sample Knowledge Model, creates a project, and verifies that reads
-work while writes and WebSockets fail closed.
+installs the locale, imports both translated content bundles, creates a project, and verifies that
+reads work while writes and WebSockets fail closed.
 
 Remove the sandbox and its disposable volumes:
 

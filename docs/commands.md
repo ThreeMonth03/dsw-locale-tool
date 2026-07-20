@@ -84,7 +84,16 @@ dsw-locale install-dsw \
   --api-key-file /run/secrets/dsw_locale_api_key \
   --default-locale
 
-dsw-locale seed-project --knowledge-model preview.km --project-name "Locale Preview"
+dsw-locale fetch-preview-content \
+  --config translation-config.yml \
+  --version "$VERSION_KEY" \
+  --output preview-content
+
+dsw-locale seed-project \
+  --knowledge-model preview-content/knowledge-model.km \
+  --document-template preview-content/document-template.zip \
+  --document-format-uuid "$DOCUMENT_FORMAT_UUID" \
+  --project-name "Locale Preview"
 
 dsw-locale capture-preview \
   --output preview-artifact \
@@ -93,7 +102,7 @@ dsw-locale capture-preview \
   --project-uuid "$PROJECT_UUID" \
   --file-project-uuid "$FILE_PROJECT_UUID" \
   --preview-file preview/fixtures/preview.csv \
-  --allowed-content-json preview.km \
+  --allowed-content-json preview-content/knowledge-model.km \
   --allowed-content-json file-preview.km
 ```
 
@@ -103,6 +112,8 @@ Seed a private disposable DSW and generate the public review route policy:
 dsw-locale prepare-review \
   --locale-bundle dist/locale.zip \
   --knowledge-model preview.km \
+  --document-template document-template.zip \
+  --document-format-uuid "$DOCUMENT_FORMAT_UUID" \
   --review-manifest review/pages.yml \
   --output review/runtime/release/site \
   --dsw-version "$DSW_VERSION" \

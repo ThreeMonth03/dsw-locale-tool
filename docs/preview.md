@@ -17,9 +17,11 @@ Open **Actions → Render DSW locale preview → Run workflow** in the tool repo
 | Translation ref | `sync/v4.32` or a reviewed commit SHA |
 | Config version | `v4.32` |
 | DSW image tag | `4.32` |
-| Knowledge Model URL | Optional raw KM JSON URL |
 
 Use a commit SHA when reviewing a pull request so the result cannot change with the branch.
+The workflow downloads the translated Knowledge Model and document template declared for the
+selected release in `translation-config.yml`, verifies both SHA-256 hashes, and installs them into
+the preview project.
 
 ## Preview artifacts
 
@@ -32,8 +34,8 @@ The workflow uploads:
 - Container logs when startup or capture fails.
 
 Runtime findings distinguish official missing strings, translated strings that still render in
-English, and strings absent from the official POT. Knowledge Model and user content supplied to the
-preview are excluded from UI findings by their values, not by hiding the questionnaire page.
+English, and strings absent from the official POT. Knowledge Model and document-template content
+are excluded from UI findings by their values, not by hiding the questionnaire or documents pages.
 
 The maintained-release workflow runs the same checks for every `active` and `maintenance` version
 defined in `translation-config.yml`.

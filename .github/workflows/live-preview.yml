@@ -27,10 +27,6 @@ on:
       pull_request_url:
         required: true
         type: string
-      knowledge_model_url:
-        required: false
-        type: string
-        default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/basic-questionnaire-test-km.json
       idle_timeout_minutes:
         required: false
         type: number
@@ -58,7 +54,8 @@ jobs:
       DSW_REVIEW_PROJECT_NAME: dsw-live-review-${{ github.run_id }}-${{ github.run_attempt }}
       DSW_REVIEW_RUNTIME_DIR: ${{ github.workspace }}/tool/review/runtime/live
       DSW_REVIEW_LOCALE_BUNDLE: ${{ github.workspace }}/dist/locale.zip
-      DSW_REVIEW_KNOWLEDGE_MODEL: ${{ github.workspace }}/build/preview.km
+      DSW_REVIEW_KNOWLEDGE_MODEL: ${{ github.workspace }}/build/preview-content/knowledge-model.km
+      DSW_REVIEW_DOCUMENT_TEMPLATE: ${{ github.workspace }}/build/preview-content/document-template.zip
       DSW_REVIEW_TRANSLATION_REF: ${{ inputs.translation_label }}
       DSW_REVIEW_REVISION: ${{ inputs.translation_ref }}
       DSW_REVIEW_PULL_REQUEST_URL: ${{ inputs.pull_request_url }}
@@ -127,10 +124,15 @@ jobs:
             --source build/locale \
             --output "$DSW_REVIEW_LOCALE_BUNDLE"
 
-      - name: Download sample Knowledge Model
-        env:
-          KNOWLEDGE_MODEL_URL: ${{ inputs.knowledge_model_url }}
-        run: curl --fail --location "$KNOWLEDGE_MODEL_URL" --output "$DSW_REVIEW_KNOWLEDGE_MODEL"
+      - name: Download verified translated preview content
+        run: |
+          result=$(dsw-locale fetch-preview-content \
+            --config locale/translation-config.yml \
+            --version "$CONFIG_VERSION" \
+            --output build/preview-content)
+          echo "$result"
+          echo "DSW_REVIEW_DOCUMENT_FORMAT_UUID=$(jq --raw-output .document_format_uuid <<< "$result")" \
+            >> "$GITHUB_ENV"
 
       - name: Start unique public tunnel
         id: tunnel

@@ -38,6 +38,8 @@ jobs:
             DSW_REVIEW_TOOL_IMAGE=dsw-review-tool:test \
             DSW_REVIEW_LOCALE_BUNDLE="$PWD/README.md" \
             DSW_REVIEW_KNOWLEDGE_MODEL="$PWD/README.md" \
+            DSW_REVIEW_DOCUMENT_TEMPLATE="$PWD/README.md" \
+            DSW_REVIEW_DOCUMENT_FORMAT_UUID=a9293d08-59a4-4e6b-ae62-7a6a570b031c \
             DSW_ADMIN_PASSWORD=password \
             docker compose --file review/docker-compose.yml config --quiet
 

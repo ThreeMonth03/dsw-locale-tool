@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import yaml
 from pydantic import ValidationError
 
@@ -57,3 +58,18 @@ def test_config_rejects_unknown_fields():
         assert "Extra inputs are not permitted" in str(error)
     else:
         raise AssertionError("Configuration should have been rejected")
+
+
+def test_config_rejects_invalid_preview_checksum():
+    data = make_config().model_dump(mode="json")
+    data["versions"]["v4.32"]["preview"] = {
+        "knowledge_model": {"url": "https://example.test/root.km", "sha256": "bad"},
+        "document_template": {
+            "url": "https://example.test/template.zip",
+            "sha256": "0" * 64,
+        },
+        "document_format_uuid": "a9293d08-59a4-4e6b-ae62-7a6a570b031c",
+    }
+
+    with pytest.raises(ValidationError, match="sha256"):
+        TranslationConfig.model_validate(data)

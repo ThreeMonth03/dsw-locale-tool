@@ -37,6 +37,8 @@ def test_review_gateway_is_read_only_and_the_setup_tool_is_ephemeral():
     assert review_tool["read_only"] is True
     assert review_tool["cap_drop"] == ["ALL"]
     assert all("production" not in volume for volume in review_tool["volumes"])
+    assert any("/inputs/knowledge-model.json:ro" in volume for volume in review_tool["volumes"])
+    assert any("/inputs/document-template.zip:ro" in volume for volume in review_tool["volumes"])
 
 
 def test_gateway_allows_one_login_write_and_denies_other_mutations_and_websockets():
@@ -70,3 +72,5 @@ def test_launcher_makes_generated_config_readable_by_the_versioned_server_user()
     launcher = (ROOT / "review" / "up.sh").read_text(encoding="utf-8")
 
     assert 'chmod 644 -- "$runtime_dir/application.yml"' in launcher
+    assert "--document-template /inputs/document-template.zip" in launcher
+    assert '--document-format-uuid "$DSW_REVIEW_DOCUMENT_FORMAT_UUID"' in launcher

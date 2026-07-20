@@ -130,6 +130,7 @@ services:
       - ./pages.yml:/inputs/pages.yml:ro
       - ${DSW_REVIEW_LOCALE_BUNDLE:?Set DSW_REVIEW_LOCALE_BUNDLE}:/inputs/locale.zip:ro
       - ${DSW_REVIEW_KNOWLEDGE_MODEL:?Set DSW_REVIEW_KNOWLEDGE_MODEL}:/inputs/knowledge-model.json:ro
+      - ${DSW_REVIEW_DOCUMENT_TEMPLATE:?Set DSW_REVIEW_DOCUMENT_TEMPLATE}:/inputs/document-template.zip:ro
       - ${DSW_REVIEW_RUNTIME_DIR:-./runtime/default}:/output
     networks:
       - internal

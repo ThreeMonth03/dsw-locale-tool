@@ -346,6 +346,8 @@ def prepare_review(
     password: str,
     locale_bundle: str | Path,
     knowledge_model: str | Path,
+    document_template: str | Path,
+    document_format_uuid: str,
     manifest_path: str | Path,
     output: str | Path,
     metadata: ReviewMetadata,
@@ -358,7 +360,12 @@ def prepare_review(
     api.login(email, password)
     api.complete_tours()
     locale = api.install_locale(locale_bundle, default_locale=True)
-    project_uuid = api.seed_project(knowledge_model, project_name=project_name)
+    project_uuid = api.seed_project(
+        knowledge_model,
+        project_name=project_name,
+        document_template=document_template,
+        document_format_uuid=document_format_uuid,
+    )
     pages = generate_review_site(
         load_review_manifest(manifest_path),
         output,
@@ -367,7 +374,11 @@ def prepare_review(
         reviewer_password=password,
         metadata=metadata,
     )
-    result = {"projectUuid": project_uuid, "locale": locale, "pages": pages["pages"]}
+    result = {
+        "projectUuid": project_uuid,
+        "locale": locale,
+        "pages": pages["pages"],
+    }
     (Path(output) / "setup.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
