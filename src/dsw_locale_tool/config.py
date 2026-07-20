@@ -57,6 +57,26 @@ class WeblateConfig(StrictModel):
     )
 
 
+class PreviewArtifact(StrictModel):
+    """One immutable remote artifact used to seed a DSW preview."""
+
+    url: str = Field(min_length=1, pattern=r"^https://")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class PreviewContentConfig(StrictModel):
+    """Translated content installed alongside a UI locale preview."""
+
+    knowledge_model: PreviewArtifact
+    document_template: PreviewArtifact
+    document_format_uuid: str = Field(
+        pattern=(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
+            r"[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        )
+    )
+
+
 class VersionConfig(StrictModel):
     """One supported DSW minor release line."""
 
@@ -64,6 +84,7 @@ class VersionConfig(StrictModel):
     locale_version: str
     recommended_app_version: str
     state: Literal["active", "maintenance", "retired"]
+    preview: PreviewContentConfig | None = None
 
     @field_validator("locale_version", "recommended_app_version")
     @classmethod
@@ -132,6 +153,14 @@ class TranslationConfig(StrictModel):
             raise LocaleToolError(
                 f"Unknown version {version_key!r}; configured versions: {supported}"
             ) from error
+
+    def preview(self, version_key: str) -> PreviewContentConfig:
+        """Return configured preview content or raise a concise error."""
+
+        preview = self.version(version_key).preview
+        if preview is None:
+            raise LocaleToolError(f"No preview content is configured for {version_key}")
+        return preview
 
 
 def load_config(path: str | Path) -> TranslationConfig:

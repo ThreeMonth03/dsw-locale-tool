@@ -7,7 +7,11 @@ import zipfile
 
 import pytest
 
-from dsw_locale_tool.dsw import DswApi, read_bundle_metadata
+from dsw_locale_tool.dsw import (
+    DswApi,
+    read_bundle_metadata,
+    read_document_template_metadata,
+)
 from dsw_locale_tool.errors import LocaleToolError
 
 
@@ -51,11 +55,28 @@ def make_bundle(path):
     return metadata
 
 
+def make_document_template(path):
+    metadata = {
+        "id": "dsw:science-europe-zh-hant:1.30.1",
+        "formats": [{"uuid": "a9293d08-59a4-4e6b-ae62-7a6a570b031c"}],
+    }
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("template/template.json", json.dumps(metadata))
+    return metadata
+
+
 def test_read_bundle_metadata(tmp_path):
     bundle = tmp_path / "locale.zip"
     metadata = make_bundle(bundle)
 
     assert read_bundle_metadata(bundle) == metadata
+
+
+def test_read_document_template_metadata(tmp_path):
+    bundle = tmp_path / "template.zip"
+    metadata = make_document_template(bundle)
+
+    assert read_document_template_metadata(bundle) == metadata
 
 
 def test_health_url_removes_api_mount():
@@ -199,3 +220,52 @@ def test_seed_project_imports_package_then_creates_project(tmp_path):
     project_body = session.calls[1][2]["json"]
     assert project_body["knowledgeModelPackageUuid"] == "package-uuid"
     assert project_body["visibility"] == "PrivateProjectVisibility"
+
+
+def test_seed_project_imports_and_selects_translated_document_template(tmp_path):
+    knowledge_model = tmp_path / "preview.km"
+    knowledge_model.write_text('{"id": "test:km:1.0.0"}', encoding="utf-8")
+    document_template = tmp_path / "template.zip"
+    make_document_template(document_template)
+    session = FakeSession(
+        [
+            FakeResponse({"uuid": "package-uuid"}, status_code=201),
+            FakeResponse({"uuid": "template-uuid"}, status_code=201),
+            FakeResponse({"uuid": "project-uuid"}, status_code=201),
+            FakeResponse({"uuid": "document-uuid"}, status_code=201),
+        ]
+    )
+    api = DswApi("http://localhost:3000/wizard-api", session=session)
+    api.token = "secret-token"
+
+    project_uuid = api.seed_project(
+        knowledge_model,
+        document_template=document_template,
+        document_format_uuid="a9293d08-59a4-4e6b-ae62-7a6a570b031c",
+    )
+
+    assert project_uuid == "project-uuid"
+    assert [call[0] for call in session.calls] == ["POST", "POST", "POST", "POST"]
+    assert session.calls[1][1].endswith("/document-templates/bundle")
+    project_body = session.calls[2][2]["json"]
+    assert project_body["documentTemplateUuid"] == "template-uuid"
+    assert project_body["formatUuid"] == "a9293d08-59a4-4e6b-ae62-7a6a570b031c"
+    document_body = session.calls[3][2]["json"]
+    assert document_body["projectUuid"] == "project-uuid"
+    assert document_body["documentTemplateUuid"] == "template-uuid"
+
+
+def test_seed_project_rejects_format_missing_from_template(tmp_path):
+    knowledge_model = tmp_path / "preview.km"
+    knowledge_model.write_text('{"id": "test:km:1.0.0"}', encoding="utf-8")
+    document_template = tmp_path / "template.zip"
+    make_document_template(document_template)
+    session = FakeSession([FakeResponse({"uuid": "package-uuid"}, status_code=201)])
+    api = DswApi("http://localhost:3000/wizard-api", session=session)
+
+    with pytest.raises(LocaleToolError, match="not declared"):
+        api.seed_project(
+            knowledge_model,
+            document_template=document_template,
+            document_format_uuid="68c26e34-5e77-4e15-9bf7-06ff92582257",
+        )

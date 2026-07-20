@@ -18,6 +18,7 @@ from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
+from dsw_locale_tool.preview_content import fetch_preview_content
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
 from dsw_locale_tool.reconcile import reconcile_version_config, write_reconcile_report
 from dsw_locale_tool.release import bump_locale_version
@@ -90,6 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     release_info_parser.add_argument("--config", type=Path, required=True)
     release_info_parser.add_argument("--version", required=True)
+
+    fetch_preview_parser = subparsers.add_parser(
+        "fetch-preview-content",
+        help="Download and verify the configured KM and document template",
+    )
+    fetch_preview_parser.add_argument("--config", type=Path, required=True)
+    fetch_preview_parser.add_argument("--version", required=True)
+    fetch_preview_parser.add_argument("--output", type=Path, required=True)
 
     bump_release_parser = subparsers.add_parser(
         "bump-release", help="Increase one immutable locale patch version"
@@ -176,6 +185,8 @@ def build_parser() -> argparse.ArgumentParser:
         "seed-project", help="Import a Knowledge Model and create a preview project"
     )
     seed_parser.add_argument("--knowledge-model", type=Path, required=True)
+    seed_parser.add_argument("--document-template", type=Path)
+    seed_parser.add_argument("--document-format-uuid")
     seed_parser.add_argument("--project-name", default="Locale Preview")
     seed_parser.add_argument("--api-url", default=os.getenv("DSW_API_URL"))
     seed_parser.add_argument(
@@ -227,6 +238,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_review_parser.add_argument("--password", default=os.getenv("DSW_ADMIN_PASSWORD"))
     prepare_review_parser.add_argument("--locale-bundle", type=Path, required=True)
     prepare_review_parser.add_argument("--knowledge-model", type=Path, required=True)
+    prepare_review_parser.add_argument("--document-template", type=Path, required=True)
+    prepare_review_parser.add_argument("--document-format-uuid", required=True)
     prepare_review_parser.add_argument("--review-manifest", type=Path, required=True)
     prepare_review_parser.add_argument("--output", type=Path, required=True)
     prepare_review_parser.add_argument("--project-name", default="Translation Review")
@@ -385,6 +398,20 @@ def run(arguments: argparse.Namespace) -> int:
         )
         return 0
 
+    if arguments.command == "fetch-preview-content":
+        print(
+            json.dumps(
+                fetch_preview_content(
+                    load_config(arguments.config),
+                    arguments.version,
+                    arguments.output,
+                ),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        return 0
+
     if arguments.command == "bump-release":
         print(
             json.dumps(
@@ -475,6 +502,8 @@ def run(arguments: argparse.Namespace) -> int:
             api.seed_project(
                 arguments.knowledge_model,
                 project_name=arguments.project_name,
+                document_template=arguments.document_template,
+                document_format_uuid=arguments.document_format_uuid,
             )
         )
         return 0
@@ -513,6 +542,8 @@ def run(arguments: argparse.Namespace) -> int:
             password=_required(arguments.password, "DSW_ADMIN_PASSWORD"),
             locale_bundle=arguments.locale_bundle,
             knowledge_model=arguments.knowledge_model,
+            document_template=arguments.document_template,
+            document_format_uuid=arguments.document_format_uuid,
             manifest_path=arguments.review_manifest,
             output=arguments.output,
             metadata=metadata,

@@ -21,6 +21,8 @@ fi
 : "${DSW_REVIEW_PORT:?Set DSW_REVIEW_PORT}"
 : "${DSW_REVIEW_LOCALE_BUNDLE:?Set DSW_REVIEW_LOCALE_BUNDLE}"
 : "${DSW_REVIEW_KNOWLEDGE_MODEL:?Set DSW_REVIEW_KNOWLEDGE_MODEL}"
+: "${DSW_REVIEW_DOCUMENT_TEMPLATE:?Set DSW_REVIEW_DOCUMENT_TEMPLATE}"
+: "${DSW_REVIEW_DOCUMENT_FORMAT_UUID:?Set DSW_REVIEW_DOCUMENT_FORMAT_UUID}"
 : "${DSW_ADMIN_PASSWORD:?Set DSW_ADMIN_PASSWORD}"
 
 if [[ "$DSW_REVIEW_ORIGIN" == */ ]]; then
@@ -32,7 +34,10 @@ if [[ ! "$DSW_REVIEW_PORT" =~ ^[0-9]+$ ]] \
   printf 'DSW_REVIEW_PORT must be an integer between 1 and 65535\n' >&2
   exit 2
 fi
-for input in "$DSW_REVIEW_LOCALE_BUNDLE" "$DSW_REVIEW_KNOWLEDGE_MODEL"; do
+for input in \
+  "$DSW_REVIEW_LOCALE_BUNDLE" \
+  "$DSW_REVIEW_KNOWLEDGE_MODEL" \
+  "$DSW_REVIEW_DOCUMENT_TEMPLATE"; do
   if [[ "$input" != /* || ! -f "$input" ]]; then
     printf 'Review input must be an existing absolute file: %s\n' "$input" >&2
     exit 2
@@ -79,6 +84,8 @@ prepare=(
   prepare-review
   --locale-bundle /inputs/locale.zip
   --knowledge-model /inputs/knowledge-model.json
+  --document-template /inputs/document-template.zip
+  --document-format-uuid "$DSW_REVIEW_DOCUMENT_FORMAT_UUID"
   --review-manifest /inputs/pages.yml
   --output /output/site
   --dsw-version "$DSW_VERSION"

@@ -15,10 +15,6 @@ on:
       dsw_image_tag:
         required: true
         type: string
-      knowledge_model_url:
-        required: false
-        type: string
-        default: https://raw.githubusercontent.com/ds-wizard/dsw-e2e-tests/abdcfaef0851f6230e1b4c2eaeb96848c0a4c5a6/cypress/fixtures/basic-questionnaire-test-km.json
       file_knowledge_model_url:
         required: false
         type: string
@@ -104,9 +100,16 @@ jobs:
             --bundle dist/locale.zip \
             --default-locale
 
-      - name: Download preview Knowledge Model
-        if: inputs.knowledge_model_url != ''
-        run: curl --fail --location "${{ inputs.knowledge_model_url }}" --output build/preview.km
+      - name: Download verified translated preview content
+        id: preview-content
+        run: |
+          result=$(dsw-locale fetch-preview-content \
+            --config locale/translation-config.yml \
+            --version "${{ inputs.config_version }}" \
+            --output build/preview-content)
+          echo "$result"
+          echo "document_format_uuid=$(jq --raw-output .document_format_uuid <<< "$result")" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Download file preview Knowledge Model
         if: inputs.file_knowledge_model_url != ''
@@ -114,10 +117,11 @@ jobs:
 
       - name: Create questionnaire
         id: questionnaire
-        if: inputs.knowledge_model_url != ''
         run: |
           project_uuid=$(dsw-locale seed-project \
-            --knowledge-model build/preview.km \
+            --knowledge-model build/preview-content/knowledge-model.km \
+            --document-template build/preview-content/document-template.zip \
+            --document-format-uuid "${{ steps.preview-content.outputs.document_format_uuid }}" \
             --project-name "Locale Preview")
           echo "project_uuid=$project_uuid" >> "$GITHUB_OUTPUT"
 
@@ -146,9 +150,7 @@ jobs:
           if [ -n "$PROJECT_UUID" ]; then
             arguments+=(--project-uuid "$PROJECT_UUID")
           fi
-          if [ -f build/preview.km ]; then
-            arguments+=(--allowed-content-json build/preview.km)
-          fi
+          arguments+=(--allowed-content-json build/preview-content/knowledge-model.km)
           if [ -n "$FILE_PROJECT_UUID" ]; then
             arguments+=(
               --file-project-uuid "$FILE_PROJECT_UUID"

@@ -104,6 +104,8 @@ def test_live_preview_uses_a_unique_tunnel_and_bounded_activity_lifecycle():
     assert "dsw-locale wait-review" in workflow
     assert "tool/review/down.sh" in workflow
     assert "update-pr-comment.sh ready" in workflow
+    assert "dsw-locale fetch-preview-content" in workflow
+    assert "DSW_REVIEW_DOCUMENT_TEMPLATE" in workflow
     assert "DSW_REVIEW_HEARTBEAT $msec" in gateway
     assert "location = /review/heartbeat" in gateway
     for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
@@ -121,4 +123,7 @@ def test_preview_exercises_file_and_administration_interfaces():
     assert "--preview-file tool/preview/fixtures/preview.csv" in workflow
     assert "--allowed-content-json build/file-preview.km" in workflow
     assert "--review-manifest tool/review/pages.yml" in workflow
+    assert "dsw-locale fetch-preview-content" in workflow
+    assert "--document-template build/preview-content/document-template.zip" in workflow
+    assert "--document-format-uuid" in workflow
     assert "datastewardshipwizard/wizard-client:${{ inputs.dsw_image_tag }}" in workflow
