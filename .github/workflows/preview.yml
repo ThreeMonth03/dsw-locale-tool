@@ -13,6 +13,11 @@ on:
         required: true
         default: sync/v4.32
         type: string
+      translation_control_ref:
+        description: Branch containing shared version and preview configuration
+        required: true
+        default: main
+        type: string
       config_version:
         description: Key in translation-config.yml
         required: true
@@ -42,6 +47,7 @@ jobs:
     with:
       translation_repository: ${{ inputs.translation_repository }}
       translation_ref: ${{ inputs.translation_ref }}
+      translation_control_ref: ${{ inputs.translation_control_ref }}
       config_version: ${{ inputs.config_version }}
       dsw_image_tag: ${{ inputs.dsw_image_tag }}
       file_knowledge_model_url: ${{ inputs.file_knowledge_model_url }}

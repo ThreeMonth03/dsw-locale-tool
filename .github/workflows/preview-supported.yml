@@ -8,6 +8,11 @@ on:
         required: true
         default: ThreeMonth03/dsw-ui-locales-zh_Hant
         type: string
+      translation_control_ref:
+        description: Branch containing shared version and preview configuration
+        required: true
+        default: main
+        type: string
   schedule:
     - cron: "43 4 * * 1"
 
@@ -33,5 +38,6 @@ jobs:
     with:
       translation_repository: ${{ needs.plan.outputs.translation_repository }}
       translation_ref: ${{ matrix.translation_ref }}
+      translation_control_ref: ${{ inputs.translation_control_ref || 'main' }}
       config_version: ${{ matrix.config_version }}
       dsw_image_tag: ${{ matrix.dsw_image_tag }}

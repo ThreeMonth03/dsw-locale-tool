@@ -106,6 +106,8 @@ def test_live_preview_uses_a_unique_tunnel_and_bounded_activity_lifecycle():
     assert "update-pr-comment.sh ready" in workflow
     assert "dsw-locale fetch-preview-content" in workflow
     assert "DSW_REVIEW_DOCUMENT_TEMPLATE" in workflow
+    assert "translation_control_ref" in workflow
+    assert "--config control/translation-config.yml" in workflow
     assert "DSW_REVIEW_HEARTBEAT $msec" in gateway
     assert "location = /review/heartbeat" in gateway
     for version in ("v4.29", "v4.30", "v4.31", "v4.32"):
@@ -126,4 +128,16 @@ def test_preview_exercises_file_and_administration_interfaces():
     assert "dsw-locale fetch-preview-content" in workflow
     assert "--document-template build/preview-content/document-template.zip" in workflow
     assert "--document-format-uuid" in workflow
+    assert "translation_control_ref" in workflow
+    assert "--config control/translation-config.yml" in workflow
     assert "datastewardshipwizard/wizard-client:${{ inputs.dsw_image_tag }}" in workflow
+
+
+def test_maintained_previews_use_the_control_configuration():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "preview-supported.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "translation_control_ref" in workflow
+    assert "translation_control_ref: ${{ inputs.translation_control_ref || 'main' }}" in workflow

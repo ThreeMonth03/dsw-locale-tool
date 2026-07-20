@@ -6,6 +6,9 @@ on:
       translation_repository:
         required: true
         type: string
+      translation_control_ref:
+        required: true
+        type: string
       translation_ref:
         required: true
         type: string
@@ -49,6 +52,14 @@ jobs:
           repository: ${{ inputs.translation_repository }}
           ref: ${{ inputs.translation_ref }}
           path: locale
+          persist-credentials: false
+
+      - name: Check out translation control configuration
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.translation_repository }}
+          ref: ${{ inputs.translation_control_ref }}
+          path: control
           persist-credentials: false
 
       - name: Set up Python
@@ -104,7 +115,7 @@ jobs:
         id: preview-content
         run: |
           result=$(dsw-locale fetch-preview-content \
-            --config locale/translation-config.yml \
+            --config control/translation-config.yml \
             --version "${{ inputs.config_version }}" \
             --output build/preview-content)
           echo "$result"
