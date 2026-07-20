@@ -8,6 +8,11 @@ on:
         required: true
         default: ThreeMonth03/dsw-ui-locales-zh_Hant
         type: string
+      translation_control_repository:
+        description: Repository containing shared version and preview configuration
+        required: true
+        default: ThreeMonth03/dsw-ui-locales-zh_Hant
+        type: string
       translation_ref:
         description: Version branch, tag, or commit
         required: true
@@ -47,6 +52,7 @@ jobs:
     with:
       translation_repository: ${{ inputs.translation_repository }}
       translation_ref: ${{ inputs.translation_ref }}
+      translation_control_repository: ${{ inputs.translation_control_repository }}
       translation_control_ref: ${{ inputs.translation_control_ref }}
       config_version: ${{ inputs.config_version }}
       dsw_image_tag: ${{ inputs.dsw_image_tag }}

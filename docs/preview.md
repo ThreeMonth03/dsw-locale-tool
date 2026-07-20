@@ -15,15 +15,17 @@ Open **Actions → Render DSW locale preview → Run workflow** in the tool repo
 | --- | --- |
 | Translation repository | `ThreeMonth03/dsw-ui-locales-zh_Hant` |
 | Translation ref | `sync/v4.32` or a reviewed commit SHA |
+| Translation control repository | `ThreeMonth03/dsw-ui-locales-zh_Hant` |
 | Translation control ref | `main` |
 | Config version | `v4.32` |
 | DSW image tag | `4.32` |
 
 Use a commit SHA when reviewing a pull request so the result cannot change with the branch.
-The workflow reads preview assets from `translation-config.yml` on the control ref, downloads the
-translated Knowledge Model and document template declared for the selected release, verifies both
-SHA-256 hashes, and installs them into the preview project. Version branches do not duplicate these
-shared asset coordinates.
+The workflow reads preview assets from `translation-config.yml` in the control repository and ref,
+downloads the translated Knowledge Model and document template declared for the selected release,
+verifies both SHA-256 hashes, and installs them into the preview project. This separation keeps a
+contributor's translation commit reviewable without trusting operational configuration from their
+fork. Version branches do not duplicate shared asset coordinates.
 
 ## Preview artifacts
 
