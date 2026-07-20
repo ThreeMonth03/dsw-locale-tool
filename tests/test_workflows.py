@@ -102,6 +102,8 @@ def test_live_preview_uses_a_unique_tunnel_and_bounded_activity_lifecycle():
     assert "default: 180" in workflow
     assert "DSW_ADMIN_PASSWORD: password" in workflow
     assert "tool/review/up.sh" in workflow
+    assert "python -m playwright install --with-deps chromium" in workflow
+    assert "dsw-locale verify-review-browser" in workflow
     assert "dsw-locale wait-review" in workflow
     assert "tool/review/down.sh" in workflow
     assert "update-pr-comment.sh ready" in workflow

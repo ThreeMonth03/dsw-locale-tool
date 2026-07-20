@@ -9,7 +9,9 @@ pages:
   - name: dashboard
     title: Dashboard
     group: General
-    route: /
+    route: /dashboard
+    aliases:
+      - /
     authenticated: true
     requires_project: false
   - name: projects

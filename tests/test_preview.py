@@ -122,7 +122,7 @@ def test_project_preview_includes_static_and_interactive_states():
     manifest = load_review_manifest(REVIEW_MANIFEST)
 
     assert review_routes(manifest, project_uuid, authenticated=True) == {
-        "dashboard": "/",
+        "dashboard": "/dashboard",
         "projects": "/projects",
         "locales": "/locales",
         "project-documents": "/project-documents",
@@ -151,7 +151,7 @@ def test_preview_without_project_uses_application_routes_only():
     manifest = load_review_manifest(REVIEW_MANIFEST)
 
     assert review_routes(manifest, None, authenticated=True) == {
-        "dashboard": "/",
+        "dashboard": "/dashboard",
         "projects": "/projects",
         "locales": "/locales",
         "project-documents": "/project-documents",

@@ -55,6 +55,7 @@ class ReviewPage(StrictModel):
     title: str = Field(min_length=1)
     group: str = Field(min_length=1)
     route: str
+    aliases: list[str] = Field(default_factory=list)
     authenticated: bool
     requires_project: bool
 
@@ -70,10 +71,18 @@ class ReviewPage(StrictModel):
     def validate_route(cls, value: str) -> str:
         return _validate_route(value)
 
+    @field_validator("aliases")
+    @classmethod
+    def validate_aliases(cls, values: list[str]) -> list[str]:
+        return [_validate_route(value) for value in values]
+
     @model_validator(mode="after")
     def validate_project_requirement(self) -> ReviewPage:
-        if (_PROJECT_PLACEHOLDER in self.route) != self.requires_project:
-            raise ValueError("requires_project must match use of {project_uuid} in route")
+        paths = (self.route, *self.aliases)
+        if any((_PROJECT_PLACEHOLDER in path) != self.requires_project for path in paths):
+            raise ValueError(
+                "requires_project must match use of {project_uuid} in routes and aliases"
+            )
         return self
 
 
@@ -123,9 +132,10 @@ class ReviewManifest(StrictModel):
 
     @model_validator(mode="after")
     def validate_unique_entries(self) -> ReviewManifest:
+        page_paths = [path for page in self.pages for path in (page.route, *page.aliases)]
         for label, values in (
             ("page name", [page.name for page in self.pages]),
-            ("page route", [page.route for page in self.pages]),
+            ("page route or alias", page_paths),
             ("scenario name", [scenario.name for scenario in self.scenarios]),
         ):
             duplicates = sorted(name for name, count in Counter(values).items() if count > 1)
@@ -235,6 +245,19 @@ def review_routes(
     }
 
 
+def review_allowed_routes(
+    manifest: ReviewManifest,
+    project_uuid: str | None,
+) -> tuple[str, ...]:
+    """Resolve every primary route and routing alias exposed by the review gateway."""
+    return tuple(
+        _resolve_route(route, project_uuid)
+        for page in manifest.pages
+        if project_uuid is not None or not page.requires_project
+        for route in (page.route, *page.aliases)
+    )
+
+
 def review_scenarios(
     manifest: ReviewManifest, project_uuid: str | None
 ) -> tuple[ResolvedReviewScenario, ...]:
@@ -297,7 +320,9 @@ def generate_review_site(
         "reviewer": {"email": reviewer_email, "password": reviewer_password},
         "metadata": metadata.public_payload(),
         "pages": public_pages,
-        "allowedPaths": [page["path"] for page in public_pages],
+        "allowedPaths": sorted(
+            {_client_route(route) for route in review_allowed_routes(manifest, project_uuid)}
+        ),
     }
     serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     (review_dir / "config.js").write_text(
