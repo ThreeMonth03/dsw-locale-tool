@@ -100,6 +100,7 @@ def test_live_preview_uses_a_unique_tunnel_and_bounded_activity_lifecycle():
     assert "timeout-minutes: 240" in workflow
     assert "default: 30" in workflow
     assert "default: 180" in workflow
+    assert "DSW_ADMIN_PASSWORD: password" in workflow
     assert "tool/review/up.sh" in workflow
     assert "dsw-locale wait-review" in workflow
     assert "tool/review/down.sh" in workflow

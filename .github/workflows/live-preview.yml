@@ -70,7 +70,7 @@ jobs:
       DSW_REVIEW_RUN_ID: ${{ github.run_id }}
       DSW_REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       DSW_ADMIN_EMAIL: albert.einstein@example.com
-      DSW_ADMIN_PASSWORD: dswTranslationReview
+      DSW_ADMIN_PASSWORD: password
     steps:
       - name: Check out trusted locale tool
         uses: actions/checkout@v6
