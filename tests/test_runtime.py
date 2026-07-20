@@ -55,12 +55,12 @@ def test_allowed_content_loads_all_json_string_values(tmp_path):
     } <= allowed
 
 
-def test_runtime_scan_distinguishes_catalog_and_runtime_findings(tmp_path):
+def test_runtime_scan_distinguishes_catalog_and_uncatalogued_findings(tmp_path):
     make_translation_tree(tmp_path)
     observations = [
         _observation("Still missing"),
         _observation("Hello"),
-        _observation("Runtime only"),
+        _observation("Uncatalogued label"),
         _observation("Button never extracted", route="projects"),
         _observation("I. Chapter One", route="questionnaire"),
         _observation("Button never extracted", route="projects", selector="#duplicate"),
@@ -73,13 +73,15 @@ def test_runtime_scan_distinguishes_catalog_and_runtime_findings(tmp_path):
     )
 
     assert report["counts"] == {
-        "runtime_not_in_pot": 1,
+        "runtime_not_in_pot": 2,
         "official_missing": 1,
-        "unexpected_source": 2,
+        "unexpected_source": 1,
         "allowed_content": 1,
     }
     runtime_finding = next(
-        item for item in report["findings"] if item["category"] == "runtime_not_in_pot"
+        item
+        for item in report["findings"]
+        if item["category"] == "runtime_not_in_pot" and item["text"] == "Button never extracted"
     )
     assert len(runtime_finding["locations"]) == 2
     markdown = render_runtime_markdown(report)

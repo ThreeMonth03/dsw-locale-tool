@@ -16,11 +16,6 @@ from dsw_locale_tool.changes import validate_translation_pr
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.dsw import DswApi
 from dsw_locale_tool.errors import LocaleToolError
-from dsw_locale_tool.frontend import (
-    frontend_image_reference,
-    load_frontend_manifest,
-    localize_frontend,
-)
 from dsw_locale_tool.plans import build_maintained_matrix, build_release_info
 from dsw_locale_tool.preview import capture_preview, generate_preview_config
 from dsw_locale_tool.propagation import propagate_translations, write_propagation_report
@@ -34,10 +29,7 @@ from dsw_locale_tool.review import (
 )
 from dsw_locale_tool.review_browser import verify_review_browser
 from dsw_locale_tool.sync import fetch_upstream_branch_heads, sync_upstream
-from dsw_locale_tool.translation_tree import (
-    add_runtime_translation,
-    refresh_translation_tree,
-)
+from dsw_locale_tool.translation_tree import refresh_translation_tree
 from dsw_locale_tool.versions import (
     available_git_branches,
     build_version_report,
@@ -99,22 +91,6 @@ def build_parser() -> argparse.ArgumentParser:
     release_info_parser.add_argument("--config", type=Path, required=True)
     release_info_parser.add_argument("--version", required=True)
 
-    frontend_reference_parser = subparsers.add_parser(
-        "frontend-reference",
-        help="Resolve the localizable wizard-client image for an application version",
-    )
-    frontend_reference_parser.add_argument("--manifest", type=Path, required=True)
-    frontend_reference_parser.add_argument("--version", required=True)
-
-    localize_frontend_parser = subparsers.add_parser(
-        "localize-frontend",
-        help="Expose confirmed hardcoded frontend text to gettext",
-    )
-    localize_frontend_parser.add_argument("--manifest", type=Path, required=True)
-    localize_frontend_parser.add_argument("--version", required=True)
-    localize_frontend_parser.add_argument("--source-root", type=Path, required=True)
-    localize_frontend_parser.add_argument("--report", type=Path)
-
     bump_release_parser = subparsers.add_parser(
         "bump-release", help="Increase one immutable locale patch version"
     )
@@ -132,16 +108,6 @@ def build_parser() -> argparse.ArgumentParser:
         "refresh-tree", help="Regenerate Markdown forms for official translation gaps"
     )
     refresh_parser.add_argument("--root", type=Path, default=Path.cwd())
-
-    runtime_parser = subparsers.add_parser(
-        "add-runtime",
-        help="Add one confirmed UI source that is absent from the official POT",
-    )
-    runtime_parser.add_argument("--root", type=Path, default=Path.cwd())
-    runtime_parser.add_argument("--component", choices=("wizard", "mail"), default="wizard")
-    runtime_parser.add_argument("--source", required=True)
-    runtime_parser.add_argument("--translation", default="")
-    runtime_parser.add_argument("--context")
 
     propagate_parser = subparsers.add_parser(
         "propagate", help="Fill exact blank translations from another release line"
@@ -419,31 +385,6 @@ def run(arguments: argparse.Namespace) -> int:
         )
         return 0
 
-    if arguments.command == "frontend-reference":
-        print(
-            json.dumps(
-                frontend_image_reference(
-                    load_frontend_manifest(arguments.manifest), arguments.version
-                ),
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-        )
-        return 0
-
-    if arguments.command == "localize-frontend":
-        report = localize_frontend(
-            load_frontend_manifest(arguments.manifest),
-            arguments.version,
-            arguments.source_root,
-        )
-        payload = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
-        if arguments.report:
-            arguments.report.parent.mkdir(parents=True, exist_ok=True)
-            arguments.report.write_text(payload, encoding="utf-8")
-        print(payload, end="")
-        return 0
-
     if arguments.command == "bump-release":
         print(
             json.dumps(
@@ -465,18 +406,6 @@ def run(arguments: argparse.Namespace) -> int:
 
     if arguments.command == "refresh-tree":
         print(json.dumps(refresh_translation_tree(arguments.root), ensure_ascii=False, indent=2))
-        return 0
-
-    if arguments.command == "add-runtime":
-        print(
-            add_runtime_translation(
-                arguments.root,
-                arguments.component,
-                arguments.source,
-                arguments.translation,
-                msgctxt=arguments.context,
-            )
-        )
         return 0
 
     if arguments.command == "propagate":

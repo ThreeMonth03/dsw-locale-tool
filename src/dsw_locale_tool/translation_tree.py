@@ -25,7 +25,7 @@ from dsw_locale_tool.errors import LocaleToolError
 COMPONENTS = ("wizard", "mail")
 TRANSLATIONS_DIRECTORY = "translations"
 UNIT_SUFFIX = ".translation.md"
-UnitKind = Literal["message", "runtime"]
+UnitKind = Literal["message"]
 UnitKey: TypeAlias = tuple[str, str | None, str]
 
 METADATA_PREFIX = "<!-- dsw-locale-unit: "
@@ -105,7 +105,7 @@ def render_translation_unit(unit: TranslationUnit) -> str:
     """Render a deterministic Markdown translation form."""
     if unit.component not in COMPONENTS:
         raise LocaleToolError(f"Unsupported DSW component: {unit.component!r}")
-    if unit.kind not in {"message", "runtime"}:
+    if unit.kind != "message":
         raise LocaleToolError(f"Unsupported translation unit kind: {unit.kind!r}")
     if not unit.msgid:
         raise LocaleToolError("Translation unit source text must not be empty")
@@ -185,7 +185,7 @@ def parse_translation_unit(path: Path, repository_root: Path) -> TranslationUnit
         not isinstance(component, str)
         or component not in COMPONENTS
         or not isinstance(kind, str)
-        or kind not in {"message", "runtime"}
+        or kind != "message"
     ):
         raise LocaleToolError(f"Translation unit metadata has unsupported values: {path}")
     if msgctxt is not None and not isinstance(msgctxt, str):
@@ -339,9 +339,7 @@ def desired_translation_units(
     for key, unit in current.items():
         if key in template_keys:
             continue
-        if unit.kind == "runtime":
-            desired[key] = unit
-        elif unit.translation:
+        if unit.translation:
             raise LocaleToolError(
                 "Translated source no longer exists upstream; resolve it explicitly: "
                 f"{unit.msgid!r}"
@@ -393,8 +391,7 @@ def _render_index_entry(unit: TranslationUnit) -> str:
     label = unit.msgid.replace("\n", " ").strip()
     if len(label) > 100:
         label = label[:97].rstrip() + "..."
-    suffix = " (runtime-only)" if unit.kind == "runtime" else ""
-    return f"- [{label}]({relative.as_posix()}){suffix}"
+    return f"- [{label}]({relative.as_posix()})"
 
 
 def write_translation_tree(
@@ -441,41 +438,7 @@ def refresh_translation_tree(root: str | Path) -> dict[str, int]:
         "units": len(desired),
         "completed": sum(bool(unit.translation) for unit in desired.values()),
         "blank": sum(not unit.translation for unit in desired.values()),
-        "runtime_only": sum(unit.kind == "runtime" for unit in desired.values()),
     }
-
-
-def add_runtime_translation(
-    root: str | Path,
-    component: str,
-    msgid: str,
-    translation: str,
-    *,
-    msgctxt: str | None = None,
-) -> Path:
-    """Add one confirmed runtime-only source and regenerate the tree index."""
-    if component not in COMPONENTS:
-        raise LocaleToolError(f"Unsupported DSW component: {component!r}")
-    if not msgid:
-        raise LocaleToolError("Runtime-only source text must not be empty")
-    repository_root = Path(root).resolve()
-    template = load_catalog(repository_root / "upstream" / f"{component}.pot")
-    if (msgctxt, msgid) in catalog_index(template):
-        raise LocaleToolError(f"Runtime-only source already exists in upstream POT: {msgid!r}")
-
-    units = load_translation_tree(repository_root)
-    unit = TranslationUnit(
-        component=component,
-        kind="runtime",
-        msgid=msgid,
-        msgctxt=msgctxt,
-        translation=translation,
-    )
-    if unit.key in units:
-        raise LocaleToolError(f"Translation form already exists for source: {msgid!r}")
-    units[unit.key] = unit
-    write_translation_tree(repository_root, units)
-    return repository_root / unit_relative_path(unit)
 
 
 def build_component_catalog(root: str | Path, component: str) -> polib.POFile:
@@ -504,25 +467,17 @@ def build_component_catalog(root: str | Path, component: str) -> polib.POFile:
     for unit in units.values():
         catalog_key = (unit.msgctxt, unit.msgid)
         template_entry = template_index.get(catalog_key)
-        if unit.kind == "message" and template_entry is None:
+        if template_entry is None:
             raise LocaleToolError(
                 f"Translation form source is absent from upstream: {unit.msgid!r}"
             )
-        if unit.kind == "runtime" and template_entry is not None:
-            raise LocaleToolError(f"Runtime-only source is now present upstream: {unit.msgid!r}")
         if not unit.translation:
             continue
 
         existing = result_index.get(catalog_key)
         if existing is not None and _same_upstream_translation(unit, existing):
             raise LocaleToolError(f"Local translation is identical to upstream: {unit.msgid!r}")
-        replacement = copy.deepcopy(template_entry or existing)
-        if replacement is None:
-            replacement = polib.POEntry(
-                msgid=unit.msgid,
-                msgctxt=unit.msgctxt,
-                msgid_plural=unit.msgid_plural or "",
-            )
+        replacement = copy.deepcopy(template_entry)
         replacement.flags = [flag for flag in replacement.flags if flag != "fuzzy"]
         replacement.msgstr = "" if unit.msgid_plural else unit.translation
         replacement.msgstr_plural = {"0": unit.translation} if unit.msgid_plural else {}

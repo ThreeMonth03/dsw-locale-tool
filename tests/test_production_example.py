@@ -29,19 +29,3 @@ def test_production_fragment_requires_image_and_is_hardened():
     assert service["cap_drop"] == ["ALL"]
     assert service["security_opt"] == ["no-new-privileges:true"]
     assert compose["secrets"]["dsw_locale_api_key"]["file"] == ("./secrets/dsw_locale_api_key")
-
-
-def test_client_fragment_requires_an_immutable_image():
-    path = Path(__file__).parents[1] / "production" / "compose.client.yml"
-    compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-
-    assert compose == {
-        "services": {
-            "client": {
-                "image": (
-                    "${DSW_CLIENT_IMAGE:?Set DSW_CLIENT_IMAGE to an immutable "
-                    "localizable client image}"
-                )
-            }
-        }
-    }

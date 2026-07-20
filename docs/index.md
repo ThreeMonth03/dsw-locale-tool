@@ -37,9 +37,8 @@ commands
 5. An isolated public sandbox can expose approved translated pages for interactive review.
 6. A versioned installer image imports the approved locale through the DSW API.
 
-When preview finds interface text that DSW has not connected to gettext, CI builds a minimal
-localizable client from the exact upstream release. The translation remains in the same Markdown
-form; translators never edit frontend code.
+Preview also reports visible English that is absent from the official POT. These findings identify
+upstream extraction gaps; they are not added to the local locale package.
 
 Each DSW minor release has its own `sync/vX.Y` branch, so source strings never move between
 versions by guesswork.
