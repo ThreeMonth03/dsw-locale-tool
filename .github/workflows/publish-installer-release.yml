@@ -63,6 +63,10 @@ jobs:
             echo "revision=$revision"
             echo "dsw_version=$dsw_version"
           } >> "$GITHUB_OUTPUT"
+          {
+            echo "DSW_VERSION=$dsw_version"
+            echo "DSW_CLIENT_IMAGE=datastewardshipwizard/wizard-client:$dsw_version"
+          } >> "$GITHUB_ENV"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -132,8 +136,6 @@ jobs:
 
       - name: Start disposable DSW for installer smoke test
         if: steps.tag.outputs.publish == 'true'
-        env:
-          DSW_VERSION: ${{ steps.image.outputs.dsw_version }}
         run: |
           dsw-locale preview-config \
             --output tool/preview/runtime/application.yml \

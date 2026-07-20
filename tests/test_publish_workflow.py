@@ -26,6 +26,9 @@ def test_publisher_is_scheduled_and_never_overwrites_a_tag():
     assert "org.opencontainers.image.revision=${{ steps.image.outputs.revision }}" in release
     assert "load: true" in release
     assert "Smoke test installer image" in release
+    assert 'echo "DSW_VERSION=$dsw_version"' in release
+    assert 'echo "DSW_CLIENT_IMAGE=datastewardshipwizard/wizard-client:$dsw_version"' in release
+    assert '>> "$GITHUB_ENV"' in release
     assert ".created == true and .enabled == true and .defaultLocale == true" in release
     assert ".created == false and .enabled == true and .defaultLocale == true" in release
     assert 'run: docker push "$IMAGE_REFERENCE"' in release
