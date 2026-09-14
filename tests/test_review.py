@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.review import (
+    ReviewManifest,
     ReviewMetadata,
     generate_review_site,
     latest_review_heartbeat,
@@ -35,6 +36,32 @@ def test_review_manifest_is_the_route_policy_for_public_and_authenticated_pages(
     assert project_routes["locales"] == "/locales"
     assert project_routes["questionnaire"] == "/projects/project-uuid"
     assert all("{" not in route for route in project_routes.values())
+
+
+@pytest.mark.parametrize("version", ["4.29", "4.30.9", "4.31", "4.32", "4.33", "4.34"])
+def test_review_pages_and_scenarios_match_the_release(version):
+    manifest = load_review_manifest(MANIFEST).for_version(version)
+    routes = review_routes(manifest, "project-uuid")
+    has_openid = tuple(map(int, version.split(".")[:2])) >= (4, 31)
+    assert ("settings-open-id" in routes) is has_openid
+    assert ("settings-open-id-create" in routes) is has_openid
+    assert any(s.name.startswith("openid-") for s in manifest.scenarios) is has_openid
+    assert routes["project-metrics"] == "/projects/project-uuid/metrics"
+    assert "settings-authentication" in routes
+    assert any(s.name == "project-share-dialog" for s in manifest.scenarios)
+
+
+@pytest.mark.parametrize("version", ["latest", "4", "v4.31", "4.31.bad"])
+def test_review_manifest_rejects_invalid_release_numbers(version):
+    with pytest.raises(ValueError, match="DSW version"):
+        load_review_manifest(MANIFEST).for_version(version)
+
+
+def test_review_manifest_validates_minimum_release():
+    manifest = load_review_manifest(MANIFEST).model_dump()
+    manifest["pages"][0]["min_dsw_version"] = "latest"
+    with pytest.raises(ValidationError, match="DSW version"):
+        ReviewManifest.model_validate(manifest)
 
 
 @pytest.mark.parametrize(

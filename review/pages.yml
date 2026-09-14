@@ -50,12 +50,14 @@ pages:
     route: /settings/open-id
     authenticated: true
     requires_project: false
+    min_dsw_version: "4.31"
   - name: settings-open-id-create
     title: Create an OpenID provider
     group: Administration
     route: /settings/open-id/create
     authenticated: true
     requires_project: false
+    min_dsw_version: "4.31"
   - name: questionnaire
     title: Questionnaire
     group: Project
@@ -66,6 +68,12 @@ pages:
     title: Project settings
     group: Project
     route: /projects/{project_uuid}/settings
+    authenticated: true
+    requires_project: true
+  - name: project-metrics
+    title: Project metrics
+    group: Project
+    route: /projects/{project_uuid}/metrics
     authenticated: true
     requires_project: true
   - name: questionnaire-documents

@@ -209,6 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--output", type=Path, required=True)
     capture_parser.add_argument("--locale-root", type=Path, required=True)
     capture_parser.add_argument("--review-manifest", type=Path, required=True)
+    capture_parser.add_argument("--dsw-version", default=os.getenv("DSW_VERSION"))
     capture_parser.add_argument("--project-uuid")
     capture_parser.add_argument("--file-project-uuid")
     capture_parser.add_argument("--preview-file", type=Path)
@@ -517,6 +518,7 @@ def run(arguments: argparse.Namespace) -> int:
             output=arguments.output,
             locale_root=arguments.locale_root,
             review_manifest=arguments.review_manifest,
+            dsw_version=_required(arguments.dsw_version, "DSW_VERSION"),
             project_uuid=arguments.project_uuid,
             file_project_uuid=arguments.file_project_uuid,
             preview_file=arguments.preview_file,

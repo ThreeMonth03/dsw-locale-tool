@@ -413,6 +413,7 @@ def capture_preview(
     output: str | Path,
     locale_root: str | Path,
     review_manifest: str | Path,
+    dsw_version: str,
     project_uuid: str | None = None,
     file_project_uuid: str | None = None,
     preview_file: str | Path | None = None,
@@ -445,7 +446,7 @@ def capture_preview(
         "token": {"token": token, "expiresAt": expires_at},
         "v9": True,
     }
-    manifest = load_review_manifest(review_manifest)
+    manifest = load_review_manifest(review_manifest).for_version(dsw_version)
     routes = review_routes(manifest, project_uuid, authenticated=True)
     public_routes = review_routes(manifest, project_uuid, authenticated=False)
     scenarios = review_scenarios(manifest, project_uuid)

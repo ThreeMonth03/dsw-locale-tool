@@ -27,6 +27,13 @@ _PROJECT_PLACEHOLDER = "{project_uuid}"
 _HEARTBEAT_PATTERN = re.compile(r"DSW_REVIEW_HEARTBEAT (?P<timestamp>[0-9]+(?:\.[0-9]+)?)")
 
 
+def _app_version(value: str) -> tuple[int, int, int]:
+    if not re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", value):
+        raise ValueError("DSW version must be major.minor or major.minor.patch")
+    major, minor, *patch = map(int, value.split("."))
+    return major, minor, patch[0] if patch else 0
+
+
 def _validate_route(value: str) -> str:
     parts = urlsplit(value)
     if (
@@ -58,6 +65,14 @@ class ReviewPage(StrictModel):
     aliases: list[str] = Field(default_factory=list)
     authenticated: bool
     requires_project: bool
+    min_dsw_version: str | None = None
+
+    @field_validator("min_dsw_version")
+    @classmethod
+    def validate_min_dsw_version(cls, value: str | None) -> str | None:
+        if value is not None:
+            _app_version(value)
+        return value
 
     @field_validator("name")
     @classmethod
@@ -129,6 +144,21 @@ class ReviewManifest(StrictModel):
     schema_version: Literal[1]
     pages: list[ReviewPage] = Field(min_length=1)
     scenarios: list[ReviewScenario] = Field(default_factory=list)
+
+    def for_version(self, dsw_version: str) -> ReviewManifest:
+        """Select declared routes and their scenarios for one DSW release."""
+        version = _app_version(dsw_version)
+        pages = [
+            page
+            for page in self.pages
+            if page.min_dsw_version is None or version >= _app_version(page.min_dsw_version)
+        ]
+        routes = {page.route for page in pages}
+        return ReviewManifest(
+            schema_version=self.schema_version,
+            pages=pages,
+            scenarios=[scenario for scenario in self.scenarios if scenario.route in routes],
+        )
 
     @model_validator(mode="after")
     def validate_unique_entries(self) -> ReviewManifest:
@@ -290,6 +320,7 @@ def generate_review_site(
     metadata: ReviewMetadata,
 ) -> dict[str, Any]:
     """Create the static portal, browser guard configuration, and Nginx route map."""
+    manifest = manifest.for_version(metadata.dsw_version)
     output_path = Path(output)
     if output_path.exists():
         shutil.rmtree(output_path)

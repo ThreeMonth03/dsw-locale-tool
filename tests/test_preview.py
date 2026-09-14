@@ -132,6 +132,7 @@ def test_project_preview_includes_static_and_interactive_states():
         "settings-open-id-create": "/settings/open-id/create",
         "questionnaire": "/projects/project-uuid",
         "project-settings": "/projects/project-uuid/settings",
+        "project-metrics": "/projects/project-uuid/metrics",
         "questionnaire-documents": "/projects/project-uuid/documents",
     }
     scenarios = review_scenarios(manifest, project_uuid)

@@ -96,6 +96,7 @@ dsw-locale seed-project \
   --project-name "Locale Preview"
 
 dsw-locale capture-preview \
+  --dsw-version "$DSW_VERSION" \
   --output preview-artifact \
   --locale-root ../dsw-ui-locales-zh_Hant \
   --review-manifest review/pages.yml \
