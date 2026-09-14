@@ -3,27 +3,29 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 
 import pytest
 import yaml
 
 from dsw_locale_tool.changes import validate_translation_pr
 from dsw_locale_tool.errors import LocaleToolError
-from tests.conftest import make_config
+from dsw_locale_tool.translation_tree import (
+    TranslationUnit,
+    render_translation_unit,
+    unit_relative_path,
+)
+from tests.conftest import make_config, make_translation_tree
+
+BLANK = TranslationUnit("wizard", "message", "Still missing")
 
 
 def _translation_tree(path):
-    path.mkdir()
+    make_translation_tree(path)
     (path / "translation-config.yml").write_text(
         yaml.safe_dump(make_config().model_dump(mode="json"), allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
-    (path / "translations" / "wizard").mkdir(parents=True)
-    (path / "translations" / "wizard" / "save--000000000000.translation.md").write_text(
-        "base\n", encoding="utf-8"
-    )
-    (path / "upstream").mkdir()
-    (path / "upstream" / "wizard.po").write_text("immutable\n", encoding="utf-8")
 
 
 def test_translation_pr_accepts_markdown_form_change(tmp_path):
@@ -31,14 +33,69 @@ def test_translation_pr_accepts_markdown_form_change(tmp_path):
     head = tmp_path / "head"
     _translation_tree(base)
     shutil.copytree(base, head)
-    unit = head / "translations" / "wizard" / "save--000000000000.translation.md"
-    unit.write_text("translated\n", encoding="utf-8")
+    unit = head / unit_relative_path(BLANK)
+    unit.write_text(
+        render_translation_unit(replace(BLANK, translation="尚未翻譯")), encoding="utf-8"
+    )
 
     report = validate_translation_pr(base, head, "sync/v4.32")
 
-    assert report["changed_paths"] == ["translations/wizard/save--000000000000.translation.md"]
+    assert report["changed_paths"] == [unit_relative_path(BLANK).as_posix()]
     assert report["translation_changed"] is True
     assert report["locale_version_bumped"] is False
+
+    unit.write_text(
+        render_translation_unit(replace(BLANK, translation="審核後的譯文")), encoding="utf-8"
+    )
+    assert validate_translation_pr(base, head, "sync/v4.32")["valid"]
+
+
+@pytest.mark.parametrize("translation", ["改寫", ""])
+def test_rejects_changing_or_clearing_existing_translation(tmp_path, translation):
+    base, head = tmp_path / "base", tmp_path / "head"
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    completed = TranslationUnit("wizard", "message", "Count: %s", translation)
+    (head / unit_relative_path(completed)).write_text(
+        render_translation_unit(completed), encoding="utf-8"
+    )
+    with pytest.raises(LocaleToolError, match="Only fields blank"):
+        validate_translation_pr(base, head, "sync/v4.32")
+
+
+def test_rejects_editing_fuzzy_official_translation(tmp_path):
+    from dsw_locale_tool.catalog import load_catalog
+
+    base, head = tmp_path / "base", tmp_path / "head"
+    _translation_tree(base)
+    catalog = load_catalog(base / "upstream/wizard.po")
+    entry = catalog.find(BLANK.msgid)
+    entry.msgstr = "既有譯文"
+    entry.flags = ["fuzzy"]
+    catalog.save(base / "upstream/wizard.po")
+    shutil.copytree(base, head)
+    (head / unit_relative_path(BLANK)).write_text(
+        render_translation_unit(replace(BLANK, translation="覆蓋")), encoding="utf-8"
+    )
+    with pytest.raises(LocaleToolError, match="Only fields blank"):
+        validate_translation_pr(base, head, "sync/v4.32")
+
+
+@pytest.mark.parametrize("operation", ["delete", "add", "source"])
+def test_rejects_changed_form_identity(tmp_path, operation):
+    base, head = tmp_path / "base", tmp_path / "head"
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    path = head / unit_relative_path(BLANK)
+    if operation == "delete":
+        path.unlink()
+    elif operation == "add":
+        new = replace(BLANK, msgid="Unknown")
+        (head / unit_relative_path(new)).write_text(render_translation_unit(new), encoding="utf-8")
+    else:
+        path.write_text(render_translation_unit(replace(BLANK, msgid="Changed")), encoding="utf-8")
+    with pytest.raises(LocaleToolError):
+        validate_translation_pr(base, head, "sync/v4.32")
 
 
 def test_translation_pr_rejects_gettext_overlay(tmp_path):

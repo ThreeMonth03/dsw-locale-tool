@@ -63,6 +63,25 @@ def test_does_not_overwrite_completed_target(tmp_path):
     assert report["counts"]["applied"] == 0
 
 
+def test_does_not_overwrite_fuzzy_official_translation(tmp_path):
+    from dsw_locale_tool.catalog import load_catalog
+
+    source, target = tmp_path / "source", tmp_path / "target"
+    make_translation_tree(source)
+    make_translation_tree(target)
+    _blank_completed_forms(target)
+    path = target / "upstream/wizard.po"
+    catalog = load_catalog(path)
+    entry = catalog.find("Count: %s")
+    entry.msgstr = "既有：%s"
+    entry.flags = ["fuzzy"]
+    catalog.save(path)
+    before = path.read_bytes()
+    report = propagate_translations(source, target)
+    assert report["counts"]["applied"] == 0
+    assert path.read_bytes() == before
+
+
 def test_requires_complete_source_identity(tmp_path):
     source = tmp_path / "source"
     target = tmp_path / "target"

@@ -7,14 +7,23 @@ Python, Docker, gettext, or access to this tool repository.
 ## Translate an existing form
 
 1. Open the branch matching the DSW version, such as `sync/v4.32`.
-2. Open `translations/README.md` and choose a source string.
+2. Open `translations/README.md` and choose an empty translation form.
 3. Select the pencil icon to edit the file in GitHub.
-4. Enter Traditional Chinese only inside the `Translation (zh_Hant)` block.
+4. Enter Traditional Chinese only inside its empty `Translation (zh_Hant)` block.
 5. Propose the change as a pull request to the same version branch.
 
 Keep placeholders such as `%s`, `${name}`, or `{count}` unchanged. Do not edit the English source,
 the hidden metadata, headings, or fence markers. CI reports a precise error if the form structure or
 a placeholder is incorrect.
+
+Only fields blank in the PR base may be changed. Reviewers may revise those new
+translations within the same PR, but must not rewrite existing translations.
+Nonempty official PO translations are also protected, including fuzzy entries
+whose Markdown forms appear empty. Do not clear review flags. Report a suspected
+problem in existing text separately for a maintainer's decision.
+
+CI enforces this rule for translation PRs and cross-version propagation. Official
+Weblate synchronization continues independently; it is not a contributor edit.
 
 ## Report text that has no form
 
