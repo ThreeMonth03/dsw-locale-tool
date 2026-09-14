@@ -356,7 +356,7 @@ def _render_index(units: dict[UnitKey, TranslationUnit]) -> str:
     for component in COMPONENTS:
         component_units = sorted(
             (unit for unit in units.values() if unit.component == component),
-            key=lambda unit: (unit.msgid.casefold(), unit.msgctxt or ""),
+            key=lambda unit: (unit.msgid.casefold(), unit.msgctxt or "", source_hash(unit)),
         )
         open_units = [unit for unit in component_units if not unit.translation]
         completed_units = [unit for unit in component_units if unit.translation]
