@@ -91,6 +91,26 @@ def test_refresh_repairs_generated_index(tmp_path):
     load_translation_tree(tmp_path)
 
 
+def test_refresh_index_is_stable_for_sources_differing_only_in_case(tmp_path):
+    messages = [
+        {"msgid": "Migrate Project", "msgstr": ""},
+        {"msgid": "Migrate project", "msgstr": ""},
+    ]
+    for filename in ("wizard.pot", "wizard.po"):
+        make_catalog(tmp_path / "upstream" / filename, messages)
+    for filename in ("mail.pot", "mail.po"):
+        make_catalog(tmp_path / "upstream" / filename, [])
+
+    refresh_translation_tree(tmp_path)
+    index = (tmp_path / "translations/README.md").read_bytes()
+    assert len(load_translation_tree(tmp_path)) == 2
+    refresh_translation_tree(tmp_path)
+    assert (tmp_path / "translations/README.md").read_bytes() == index
+    make_catalog(tmp_path / "upstream/wizard.pot", list(reversed(messages)))
+    refresh_translation_tree(tmp_path)
+    assert (tmp_path / "translations/README.md").read_bytes() == index
+
+
 def test_refresh_refuses_to_discard_translation_removed_upstream(tmp_path):
     make_translation_tree(tmp_path)
     make_catalog(
