@@ -37,6 +37,10 @@ before CI commits it. The source and every changed target receive a new immutabl
 version automatically. A concurrent branch update causes the push to fail instead of being
 overwritten.
 
+This protection applies to automatic propagation, not human review. Existing
+translations may be corrected in focused PRs addressing reported issues. Open a
+correction PR for each affected version whose existing wording needs to change.
+
 To inspect the same operation locally:
 
 ```console

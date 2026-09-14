@@ -51,7 +51,7 @@ def test_translation_pr_accepts_markdown_form_change(tmp_path):
 
 
 @pytest.mark.parametrize("translation", ["改寫", ""])
-def test_rejects_changing_or_clearing_existing_translation(tmp_path, translation):
+def test_accepts_changing_or_clearing_existing_translation(tmp_path, translation):
     base, head = tmp_path / "base", tmp_path / "head"
     _translation_tree(base)
     shutil.copytree(base, head)
@@ -59,11 +59,10 @@ def test_rejects_changing_or_clearing_existing_translation(tmp_path, translation
     (head / unit_relative_path(completed)).write_text(
         render_translation_unit(completed), encoding="utf-8"
     )
-    with pytest.raises(LocaleToolError, match="Only fields blank"):
-        validate_translation_pr(base, head, "sync/v4.32")
+    assert validate_translation_pr(base, head, "sync/v4.32")["translation_changed"]
 
 
-def test_rejects_editing_fuzzy_official_translation(tmp_path):
+def test_accepts_reviewing_fuzzy_official_translation(tmp_path):
     from dsw_locale_tool.catalog import load_catalog
 
     base, head = tmp_path / "base", tmp_path / "head"
@@ -77,7 +76,30 @@ def test_rejects_editing_fuzzy_official_translation(tmp_path):
     (head / unit_relative_path(BLANK)).write_text(
         render_translation_unit(replace(BLANK, translation="覆蓋")), encoding="utf-8"
     )
-    with pytest.raises(LocaleToolError, match="Only fields blank"):
+    assert validate_translation_pr(base, head, "sync/v4.32")["translation_changed"]
+
+
+def test_accepts_new_correction_form_for_translated_official_entry(tmp_path):
+    base, head = tmp_path / "base", tmp_path / "head"
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    correction = TranslationUnit("wizard", "message", "Hello", "你好")
+    (head / unit_relative_path(correction)).write_text(
+        render_translation_unit(correction), encoding="utf-8"
+    )
+    assert validate_translation_pr(base, head, "sync/v4.32")["translation_changed"]
+
+
+@pytest.mark.parametrize("identity", [{"msgctxt": "wrong"}, {"msgid_plural": "Hello plural"}])
+def test_rejects_new_correction_with_wrong_source_identity(tmp_path, identity):
+    base, head = tmp_path / "base", tmp_path / "head"
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    correction = TranslationUnit("wizard", "message", "Hello", "你好", **identity)
+    (head / unit_relative_path(correction)).write_text(
+        render_translation_unit(correction), encoding="utf-8"
+    )
+    with pytest.raises(LocaleToolError, match="must match an official POT entry"):
         validate_translation_pr(base, head, "sync/v4.32")
 
 

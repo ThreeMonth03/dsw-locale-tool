@@ -11,9 +11,10 @@ from typing import Any
 
 import yaml
 
+from dsw_locale_tool.catalog import catalog_index, load_catalog
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.errors import LocaleToolError
-from dsw_locale_tool.translation_tree import parse_translation_unit, upstream_translated_keys
+from dsw_locale_tool.translation_tree import parse_translation_unit
 
 RELEASE_VERSION_PATTERN = re.compile(r"^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 
@@ -133,16 +134,21 @@ def validate_translation_pr(
         version_key,
     )
     forms = [path for path in changed if path.endswith(".translation.md")]
-    protected = upstream_translated_keys(base) if forms else set()
     for path in forms:
-        if not (base / path).is_file() or not (head / path).is_file():
-            raise LocaleToolError(f"Translation forms must not be added or removed: {path}")
-        before = parse_translation_unit(base / path, base)
+        if not (head / path).is_file():
+            raise LocaleToolError(f"Translation forms must not be removed: {path}")
         after = parse_translation_unit(head / path, head)
-        if replace(after, translation=before.translation) != before:
-            raise LocaleToolError(f"Translation source and metadata are read-only: {path}")
-        if before.translation or before.key in protected:
-            raise LocaleToolError(f"Only fields blank in the PR base may be edited: {path}")
+        if (base / path).is_file():
+            before = parse_translation_unit(base / path, base)
+            if replace(after, translation=before.translation) != before:
+                raise LocaleToolError(f"Translation source and metadata are read-only: {path}")
+        else:
+            template = catalog_index(load_catalog(base / "upstream" / f"{after.component}.pot"))
+            entry = template.get((after.msgctxt, after.msgid))
+            if entry is None or (entry.msgid_plural or None) != after.msgid_plural:
+                raise LocaleToolError(
+                    f"New translation form must match an official POT entry: {path}"
+                )
     return {
         "valid": True,
         "branch": branch,
