@@ -108,9 +108,10 @@ def test_review_manifest_rejects_multiline_browser_selectors(tmp_path):
         load_review_manifest(candidate)
 
 
-def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path):
+@pytest.mark.parametrize("version", ["4.30.1", "4.32.1"])
+def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path, version):
     metadata = ReviewMetadata(
-        dsw_version="4.32.1",
+        dsw_version=version,
         translation_ref="sync/v4.32",
         revision="abcdef1234567890",
         pull_request_url="https://github.com/example/locale/pull/7",
@@ -133,7 +134,8 @@ def test_generate_review_site_writes_portal_config_and_exact_nginx_map(tmp_path)
         "email": "reviewer@example.test",
         "password": "disposable",
     }
-    assert payload["metadata"]["dswVersion"] == "4.32.1"
+    assert payload["metadata"]["dswVersion"] == version
+    assert ("/wizard/settings/open-id" in payload["allowedPaths"]) is (version == "4.32.1")
     assert payload["metadata"]["translationRef"] == "sync/v4.32"
     assert payload["metadata"]["revision"] == "abcdef1234567890"
     assert payload["metadata"]["idleTimeoutMinutes"] == 30
