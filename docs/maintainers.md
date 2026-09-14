@@ -31,7 +31,8 @@ Structure and placeholder findings must be resolved before packaging.
 
 Merging a translation pull request starts exact propagation for every other maintained release
 branch. CI fills a target only when the form already exists, is blank, and has the same component,
-source, plural source, and context. Each changed target is audited, built, and packaged
+source, plural source, and context. Nonempty official PO translations, including
+fuzzy entries, are never propagation targets. Each changed target is audited, built, and packaged
 before CI commits it. The source and every changed target receive a new immutable locale patch
 version automatically. A concurrent branch update causes the push to fail instead of being
 overwritten.

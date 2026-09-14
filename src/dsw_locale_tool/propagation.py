@@ -12,6 +12,7 @@ from dsw_locale_tool.translation_tree import (
     load_translation_tree,
     source_hash,
     unit_relative_path,
+    upstream_translated_keys,
     write_translation_tree,
 )
 
@@ -23,6 +24,7 @@ def propagate_translations(
     """Fill blank target forms whose complete source identity exists in the source tree."""
     source_units = load_translation_tree(source_root)
     target_units = load_translation_tree(target_root)
+    protected = upstream_translated_keys(target_root)
     completed_sources = {
         source_hash(unit): unit for unit in source_units.values() if unit.translation
     }
@@ -32,7 +34,7 @@ def propagate_translations(
     for key, target in sorted(
         target_units.items(), key=lambda item: unit_relative_path(item[1]).as_posix()
     ):
-        if target.translation:
+        if target.translation or key in protected:
             continue
         source = completed_sources.get(source_hash(target))
         if source is None:

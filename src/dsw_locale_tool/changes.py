@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import yaml
 
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.errors import LocaleToolError
+from dsw_locale_tool.translation_tree import parse_translation_unit, upstream_translated_keys
 
 RELEASE_VERSION_PATTERN = re.compile(r"^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 
@@ -130,6 +132,17 @@ def validate_translation_pr(
         head / "translation-config.yml",
         version_key,
     )
+    forms = [path for path in changed if path.endswith(".translation.md")]
+    protected = upstream_translated_keys(base) if forms else set()
+    for path in forms:
+        if not (base / path).is_file() or not (head / path).is_file():
+            raise LocaleToolError(f"Translation forms must not be added or removed: {path}")
+        before = parse_translation_unit(base / path, base)
+        after = parse_translation_unit(head / path, head)
+        if replace(after, translation=before.translation) != before:
+            raise LocaleToolError(f"Translation source and metadata are read-only: {path}")
+        if before.translation or before.key in protected:
+            raise LocaleToolError(f"Only fields blank in the PR base may be edited: {path}")
     return {
         "valid": True,
         "branch": branch,
