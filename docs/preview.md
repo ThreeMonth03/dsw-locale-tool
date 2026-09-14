@@ -29,6 +29,11 @@ fork. Version branches do not duplicate shared asset coordinates.
 
 ## Preview artifacts
 
+`review/pages.yml` defines the shared screenshot and read-only review routes. Set a page's
+`min_dsw_version` when it is introduced in a later DSW release. Earlier releases exclude that page
+and its scenarios; missing pages still fail the check when the selected release supports them.
+Project Metrics is included so translators can review metric labels alongside the questionnaire.
+
 The workflow uploads:
 
 - Browser screenshots for the visited DSW routes.

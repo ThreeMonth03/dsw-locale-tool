@@ -53,7 +53,7 @@ jobs:
               reviewer_email="reviewer@example.test",
               reviewer_password="disposable",
               metadata=ReviewMetadata(
-                  dsw_version="test",
+                  dsw_version="4.32",
                   translation_ref="test",
                   revision="test",
                   idle_timeout_minutes=30,
