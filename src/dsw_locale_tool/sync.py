@@ -18,8 +18,6 @@ MANAGED_FILES = (
     ("mail.pot", "mail.pot"),
     ("wizard.po", "wizard.po"),
     ("mail.po", "mail.po"),
-    ("locale.json", "locale.json"),
-    ("README.md", "README.md"),
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 UPSTREAM_BRANCH_PATTERN = re.compile(r"^refs/heads/(?P<version>v\d+\.\d+)$")
@@ -128,7 +126,7 @@ def validate_upstream_lock(
     version_key: str,
     repository_root: str | Path,
 ) -> dict[str, object]:
-    """Verify that a build uses a committed baseline for the requested release line."""
+    """Verify that a submission uses the official baseline for the requested version."""
     version = config.version(version_key)
     lock_path = Path(repository_root).resolve() / "upstream" / "upstream.lock.yml"
     if not lock_path.is_file():

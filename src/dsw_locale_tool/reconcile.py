@@ -68,12 +68,8 @@ def reconcile_version_config(
             )
             continue
 
-        number = version_key.removeprefix("v")
-        release = f"{number}.0"
         versions[version_key] = {
             "upstream_ref": upstream_ref,
-            "locale_version": release,
-            "recommended_app_version": release,
             "state": item.expected_state,
         }
         added_versions.append(
@@ -99,7 +95,7 @@ def reconcile_version_config(
         key=version_sort_key,
     )
     managed_versions = sorted(
-        (key for key, version in candidate.versions.items() if version.state != "retired"),
+        candidate.versions,
         key=version_sort_key,
     )
     return {

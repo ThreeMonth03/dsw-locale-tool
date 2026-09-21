@@ -42,8 +42,6 @@ def test_reconcile_adds_version_only_after_upstream_branch_exists(tmp_path):
     assert saved["versions"]["v4.32"]["state"] == "maintenance"
     assert saved["versions"]["v4.33"] == {
         "upstream_ref": "v4.33",
-        "locale_version": "4.33.0",
-        "recommended_app_version": "4.33.0",
         "state": "active",
     }
     assert report["changed"] is True
