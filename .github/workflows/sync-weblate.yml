@@ -80,7 +80,7 @@ jobs:
           else
             git switch --create "$branch" origin/main
           fi
-          git restore --source=origin/main -- .github docs README.md CONTRIBUTING.md translation-config.yml
+          git restore --source=origin/main -- docs README.md CONTRIBUTING.md translation-config.yml
       - name: Synchronize catalogs and translation forms
         env:
           VERSION: ${{ matrix.version }}
@@ -93,7 +93,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github docs README.md CONTRIBUTING.md translation-config.yml upstream translations
+          git add docs README.md CONTRIBUTING.md translation-config.yml upstream translations
           if ! git diff --cached --quiet; then
             git commit -m "Synchronize official translations and contributor workflow"
           fi

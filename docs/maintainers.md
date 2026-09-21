@@ -46,5 +46,7 @@ Re-run a dry run before deciding what to do next.
 ## Tool updates
 
 The translation workflows pin both reusable workflows and tool checkouts to one commit.
-Test a new tool commit first, update the pins in a translation-repository PR, and run synchronization
-to distribute shared files. Do not use a floating tool branch for privileged jobs.
+Test a new tool commit first, then update the pins on the control branch and maintained version
+branches. Synchronization distributes contributor documentation and configuration, not workflow
+files. New version branches inherit the current control-branch workflows.
+Do not use a floating tool branch for privileged jobs.
