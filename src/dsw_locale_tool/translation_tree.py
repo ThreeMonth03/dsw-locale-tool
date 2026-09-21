@@ -75,16 +75,6 @@ def source_hash(unit: TranslationUnit) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def upstream_translated_keys(root: str | Path) -> set[UnitKey]:
-    """Return all nonempty official translations, including fuzzy entries."""
-    return {
-        (component, *entry_key(entry))
-        for component in COMPONENTS
-        for entry in load_catalog(Path(root) / "upstream" / f"{component}.po")
-        if not entry.obsolete and entry.msgid and any(translated_strings(entry))
-    }
-
-
 def _slug(value: str) -> str:
     candidate = SLUG_PATTERN.sub("-", value.casefold()).strip("-")[:48].rstrip("-")
     return candidate or "message"

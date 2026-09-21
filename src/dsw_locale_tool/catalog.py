@@ -54,15 +54,6 @@ def catalog_index(catalog: polib.POFile) -> dict[CatalogKey, polib.POEntry]:
     return index
 
 
-def entry_is_translated(entry: polib.POEntry | None) -> bool:
-    """Treat fuzzy and empty translations as untranslated."""
-    if entry is None or "fuzzy" in entry.flags:
-        return False
-    if entry.msgid_plural:
-        return bool(entry.msgstr_plural) and all(entry.msgstr_plural.values())
-    return bool(entry.msgstr)
-
-
 def translated_strings(entry: polib.POEntry) -> list[str]:
     """Return all singular or plural translated strings."""
     if entry.msgid_plural:
