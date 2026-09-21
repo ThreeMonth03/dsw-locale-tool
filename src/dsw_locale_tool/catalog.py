@@ -1,4 +1,4 @@
-"""PO catalog inspection shared by synchronization, audits, and builds."""
+"""PO catalog inspection shared by synchronization and contribution checks."""
 
 from __future__ import annotations
 
@@ -28,9 +28,8 @@ def load_catalog(path: Path) -> polib.POFile:
         raise LocaleToolError(f"Required catalog does not exist: {path}")
     try:
         content = path.read_text(encoding="utf-8")
-        # DSW's v4.32 mail.pot starts with ``#Comment``. GNU gettext accepts it,
-        # while polib correctly expects ``# Comment``. Normalize only this comment
-        # marker in memory and keep the synchronized upstream file byte-for-byte.
+        # Accept gettext translator comments without a space while preserving
+        # the downloaded catalog byte-for-byte on disk.
         normalized = MALFORMED_TRANSLATOR_COMMENT.sub("# ", content)
         return polib.pofile(normalized)
     except (OSError, UnicodeError, ValueError) as error:
@@ -44,7 +43,15 @@ def entry_key(entry: polib.POEntry) -> CatalogKey:
 
 def catalog_index(catalog: polib.POFile) -> dict[CatalogKey, polib.POEntry]:
     """Index non-obsolete entries by context and source string."""
-    return {entry_key(entry): entry for entry in catalog if not entry.obsolete}
+    index = {}
+    for entry in catalog:
+        if entry.obsolete:
+            continue
+        key = entry_key(entry)
+        if key in index:
+            raise LocaleToolError(f"Duplicate gettext source identity: {key!r}")
+        index[key] = entry
+    return index
 
 
 def entry_is_translated(entry: polib.POEntry | None) -> bool:

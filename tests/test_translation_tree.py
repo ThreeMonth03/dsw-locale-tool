@@ -129,3 +129,31 @@ def test_translation_edit_does_not_change_unit_path():
     unit = TranslationUnit(component="mail", kind="message", msgid="Reset password")
 
     assert unit_relative_path(unit) == unit_relative_path(replace(unit, translation="重設密碼"))
+
+
+def test_matching_fuzzy_draft_is_removed_without_changing_official_state(tmp_path):
+    from dsw_locale_tool.catalog import load_catalog
+
+    make_translation_tree(tmp_path)
+    path = tmp_path / "upstream/wizard.po"
+    catalog = load_catalog(path)
+    catalog.find("Count: %s").msgstr = "數量"
+    catalog.find("Count: %s").flags = ["fuzzy"]
+    catalog.save(path)
+    before = path.read_bytes()
+    refresh_translation_tree(tmp_path)
+    assert ("wizard", None, "Count: %s") not in load_translation_tree(tmp_path)
+    assert path.read_bytes() == before
+
+
+def test_nonempty_fuzzy_has_no_blank_translation_form(tmp_path):
+    from dsw_locale_tool.catalog import load_catalog
+
+    make_translation_tree(tmp_path)
+    path = tmp_path / "upstream/wizard.po"
+    catalog = load_catalog(path)
+    catalog.find("Still missing").msgstr = "待審譯文"
+    catalog.find("Still missing").flags = ["fuzzy"]
+    catalog.save(path)
+    refresh_translation_tree(tmp_path)
+    assert ("wizard", None, "Still missing") not in load_translation_tree(tmp_path)

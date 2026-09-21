@@ -1,71 +1,50 @@
 # Maintainer guide
 
-Routine work happens through GitHub Actions in the translation repository. Local commands are
-available for investigation and release preparation.
+## Synchronize
 
-## Synchronize a release branch
+Run **Synchronize official translations** in the translation repository.
+The daily workflow discovers official versions, updates catalog snapshots, refreshes Markdown
+forms, and checks local contributions before committing. Existing version branches remain maintained.
 
-```console
-VERSION_KEY=vX.Y
-dsw-locale sync-upstream \
-  --config translation-config.yml \
-  --version "$VERSION_KEY" \
-  --output .
+The workflow also distributes shared instructions and configuration from `main`.
+Keep translator edits in version branches and shared policy changes in `main`.
 
-dsw-locale refresh-tree --root .
-dsw-locale audit \
-  --root . \
-  --report-dir reports \
-  --fail-on placeholders \
-  --fail-on structure
-```
+## Submit a translation batch
 
-Commit `upstream/` and `translations/` together. `refresh-tree` adds forms for new gaps, removes
-blank forms that official Weblate has completed, and removes local translations that are now
-identical to official translations.
+1. Run **Submit translations to Weblate** from `main`, select a version, and keep `apply` off.
+2. Inspect the submission report and delta PO files. The default batch limit is 20.
+3. Copy the reviewed plan hash displayed by the workflow.
+4. Run again with that `expected_plan` and `apply` enabled.
+5. Inspect the verification result and review the fuzzy entries on official Weblate.
 
-An audit may report missing translations without failing: those entries are the work queue.
-Structure and placeholder findings must be resolved before packaging.
+The workflow refuses to apply if the exact candidate batch, wording, source identity, or prior
+Weblate values differ from the reviewed dry run.
+By default, every nonempty official target is protected, including fuzzy translations.
+Use `allow_corrections` only for a reviewed correction batch. It does not approve translations.
 
-## Cross-version propagation
+Create an Actions secret named `LOCALIZE_API_TOKEN` in the translation repository.
+Its Weblate account needs permission to edit the selected Traditional Chinese translation.
+Never put the token in files, issue comments, or workflow inputs.
+Without it, dry runs and all read-only synchronization still work.
 
-Merging a translation pull request starts exact propagation for every other maintained release
-branch. CI fills a target only when the form already exists, is blank, and has the same component,
-source, plural source, and context. Nonempty official PO translations, including
-fuzzy entries, are never propagation targets. Each changed target is audited, built, and packaged
-before CI commits it. The source and every changed target receive a new immutable locale patch
-version automatically. A concurrent branch update causes the push to fail instead of being
-overwritten.
+## Verification and conflicts
 
-This protection applies to automatic propagation, not human review. Existing
-translations may be corrected in focused PRs addressing reported issues. Open a
-correction PR for each affected version whose existing wording needs to change.
+Before each write the tool rechecks source identity, current wording, review state, and API
+update timestamp. It writes only the target and fuzzy state of the selected unit.
+It reads back the result immediately and after a settling interval, then compares downloaded
+PO files for unexpected changes. Reports and preflight backups are uploaded even on failure.
 
-To inspect the same operation locally:
+Weblate does not provide an atomic compare-and-set operation here. A concurrent edit between
+the last check and write remains possible; coordinate review batches with other editors.
+Automatic translation may also modify a fuzzy entry later. Verification is a point-in-time check,
+not a guarantee that future Weblate activity will leave it unchanged.
 
-```console
-dsw-locale propagate \
-  --source-root ../source-release \
-  --target-root ../target-release \
-  --report-dir reports/propagation
-```
+On conflict or verification failure, inspect the report. Successful writes are retained; the
+tool never clears translations, retries a failed write automatically, or rolls back a whole file.
+Re-run a dry run before deciding what to do next.
 
-## Prepare a translation release
+## Tool updates
 
-1. Confirm that the translation PR targets the correct `sync/vX.Y` branch.
-2. Review the audit and preview artifacts.
-3. Merge the translation pull request; CI advances every affected `locale_version`.
-4. Run **Publish maintained locale installers** for immediate publication, or wait for its scheduled
-   run.
-
-The publisher creates an immutable GHCR image tag from `locale.json.version`. Existing tags are not
-overwritten. Before a new tag is pushed, the workflow starts the configured DSW release and runs the
-installer three times: a fresh install, an idempotent repeat, and another repeat after the DSW server
-restarts. The image is published only when all three checks succeed.
-
-## Review English found outside the catalog
-
-The browser scan reports visible English that does not match the official POT. Confirm that the
-finding is interface text rather than Knowledge Model, document template, user, or system content.
-Report confirmed extraction gaps upstream; local translation forms remain limited to official
-gettext messages.
+The translation workflows pin both reusable workflows and tool checkouts to one commit.
+Test a new tool commit first, update the pins in a translation-repository PR, and run synchronization
+to distribute shared files. Do not use a floating tool branch for privileged jobs.

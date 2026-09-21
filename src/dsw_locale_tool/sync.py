@@ -18,8 +18,6 @@ MANAGED_FILES = (
     ("mail.pot", "mail.pot"),
     ("wizard.po", "wizard.po"),
     ("mail.po", "mail.po"),
-    ("locale.json", "locale.json"),
-    ("README.md", "README.md"),
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 UPSTREAM_BRANCH_PATTERN = re.compile(r"^refs/heads/(?P<version>v\d+\.\d+)$")

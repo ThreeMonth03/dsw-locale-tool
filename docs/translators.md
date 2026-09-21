@@ -1,60 +1,16 @@
-# Translator guide
+# For translators
 
-Translations are contributed in
-[dsw-ui-locales-zh_Hant](https://github.com/ThreeMonth03/dsw-ui-locales-zh_Hant). You do not need
-Python, Docker, gettext, or access to this tool repository.
+Choose the matching `sync/vX.Y` branch in the translation repository.
+Open `translations/README.md` and fill only an empty translation block.
+The generated index does not need to be edited; synchronization updates it.
 
-## Translate an existing form
+Use existing Traditional Chinese translations as the terminology baseline.
+Consult the glossary when existing usage does not settle the wording.
+Keep placeholders, Markdown links, and source context intact.
 
-1. Open the branch matching the DSW version, such as `sync/v4.32`.
-2. Open `translations/README.md` and choose a blank form or one with a reported issue.
-3. Select the pencil icon to edit the file in GitHub.
-4. Enter Traditional Chinese only inside its `Translation (zh_Hant)` block.
-5. Propose the change as a pull request to the same version branch.
+Existing translations are maintained, not frozen. Propose a focused correction when someone
+reports a problem; leave unrelated wording unchanged.
 
-Keep placeholders such as `%s`, `${name}`, or `{count}` unchanged. Do not edit the English source,
-the hidden metadata, headings, or fence markers. CI reports a precise error if the form structure or
-a placeholder is incorrect.
-
-Prioritize empty fields and review the newly added translations. Leave existing
-wording alone unless a problem has been identified. Existing translations are
-maintained, not frozen: propose a focused correction when an issue is reported,
-link the report or discussion, and explain the wording. This also applies to
-nonempty fuzzy translations. Avoid unrelated rewrites.
-
-CI checks source identity, form structure, and placeholders for both new
-translations and corrections. Official Weblate synchronization continues
-independently. Do not edit generated PO files or review flags manually.
-
-## Report text that has no form
-
-Use the translation repository's
-[issue forms](https://github.com/ThreeMonth03/dsw-ui-locales-zh_Hant/issues/new/choose) and include:
-
-1. The DSW version.
-2. The page or navigation path.
-3. The complete English text, including punctuation and placeholders.
-4. A screenshot and reproduction steps.
-5. A suggested translation, if available.
-
-If an official translation needs correction but has no form, a maintainer can
-prepare a form from its official POT entry for review through the same workflow.
-
-Questionnaire content belongs to the Knowledge Model locale, and exported document text belongs to
-the Document Template. This repository handles DSW interface controls, navigation, and system
-messages.
-
-## Review the result
-
-After validation succeeds, CI renders every non-draft translation pull request in a disposable DSW
-installation. A bot comment links to the run. Open its preview artifact to inspect screenshots and
-the runtime English-text report. The screenshots include project settings, sharing, comments, and
-the project deletion confirmation. They also cover Documents, project files, file upload and delete
-dialogs, organization and authentication settings, and both OpenID configuration forms. The preview
-does not connect to production data.
-
-When the pull request is merged, completed translations are copied into matching blank forms on the
-other maintained release branches. This happens only when the complete source identity is unchanged;
-automatic propagation never replaces existing translations. Correct reported
-issues in already translated versions through focused PRs to those branches.
-CI also advances the immutable locale package version; translators do not edit release metadata.
+CI checks source identity and placeholders. It does not host a DSW preview or change Weblate.
+A maintainer submits reviewed drafts as fuzzy translations for review on official Weblate.
+For text missing from the official POT, report the extraction gap upstream.

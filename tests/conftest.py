@@ -35,21 +35,11 @@ def make_config(repository: str = "https://example.test/wizard-locales.git") -> 
     """Build a representative valid configuration."""
     return TranslationConfig.model_validate(
         {
-            "schema_version": 1,
-            "locale": {
-                "organization_id": "depositar",
-                "locale_id": "zh_Hant",
-                "code": "zh-hant",
-                "name": "繁體中文（測試）",
-                "description": "測試語系",
-                "license": "CC-BY-4.0",
-            },
+            "schema_version": 2,
             "upstream": {"repository": repository, "locale": "zh_Hant"},
             "versions": {
                 "v4.32": {
                     "upstream_ref": "v4.32",
-                    "locale_version": "4.32.0",
-                    "recommended_app_version": "4.32.0",
                     "state": "active",
                 }
             },

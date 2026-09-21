@@ -1,4 +1,4 @@
-"""Translation repository configuration loading and validation."""
+"""Strict configuration for official DSW translation synchronization."""
 
 from __future__ import annotations
 
@@ -7,106 +7,55 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from dsw_locale_tool.errors import LocaleToolError
 
-VERSION_KEY_PATTERN = re.compile(r"^v(?P<major>\d+)\.(?P<minor>\d+)$")
-SEMVER_PATTERN = re.compile(
-    r"^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
-    r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
-)
+VERSION_KEY_PATTERN = re.compile(r"^v\d+\.\d+$")
 
 
 class StrictModel(BaseModel):
-    """Base model that rejects misspelled or obsolete configuration keys."""
+    """Reject misspelled and removed settings."""
 
     model_config = ConfigDict(extra="forbid")
 
 
-class LocaleMetadata(StrictModel):
-    """Metadata written to the generated DSW locale package."""
-
-    organization_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
-    locale_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
-    code: str = Field(min_length=1, pattern=r"^[a-z0-9-]+$")
-    name: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    license: str = Field(min_length=1)
-
-
 class UpstreamConfig(StrictModel):
-    """Location and source locale in the official wizard-locales repository."""
+    """Official source repository and translation language."""
 
-    repository: str = Field(min_length=1)
-    locale: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    repository: str
+    locale: Literal["zh_Hant"] = "zh_Hant"
 
 
 class WeblateConfig(StrictModel):
-    """Official Weblate project catalog used as the supported-version source."""
+    """Read-only release discovery endpoints."""
 
-    projects_url: str = Field(
-        default="https://localize.ds-wizard.org/api/projects/",
-        min_length=1,
-        pattern=r"^https://",
+    projects_url: Literal["https://localize.ds-wizard.org/api/projects/"] = (
+        "https://localize.ds-wizard.org/api/projects/"
     )
-    public_projects_url: str = Field(
-        default="https://localize.ds-wizard.org/projects/",
-        min_length=1,
-        pattern=r"^https://",
-    )
-
-
-class PreviewArtifact(StrictModel):
-    """One immutable remote artifact used to seed a DSW preview."""
-
-    url: str = Field(min_length=1, pattern=r"^https://")
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-class PreviewContentConfig(StrictModel):
-    """Translated content installed alongside a UI locale preview."""
-
-    knowledge_model: PreviewArtifact
-    document_template: PreviewArtifact
-    document_format_uuid: str = Field(
-        pattern=(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
-            r"[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        )
+    public_projects_url: Literal["https://localize.ds-wizard.org/projects/"] = (
+        "https://localize.ds-wizard.org/projects/"
     )
 
 
 class VersionConfig(StrictModel):
-    """One supported DSW minor release line."""
+    """A DSW minor version, not a separately released local locale."""
 
-    upstream_ref: str = Field(min_length=1)
-    locale_version: str
-    recommended_app_version: str
-    state: Literal["active", "maintenance", "retired"]
-    preview: PreviewContentConfig | None = None
-
-    @field_validator("locale_version", "recommended_app_version")
-    @classmethod
-    def validate_semver(cls, value: str) -> str:
-        """Require package versions to be valid semantic versions."""
-        if not SEMVER_PATTERN.fullmatch(value):
-            raise ValueError("must be a semantic version such as 4.32.0 or 4.32.0-local.1")
-        return value
+    upstream_ref: str
+    state: Literal["active", "maintenance"]
 
 
 class BranchConfig(StrictModel):
-    """Branch naming policy used by the translation repository."""
+    """Fixed repository layout used by the workflows."""
 
-    control: str = "main"
-    version_prefix: str = "sync/"
+    control: Literal["main"] = "main"
+    version_prefix: Literal["sync/"] = "sync/"
 
 
 class TranslationConfig(StrictModel):
-    """Top-level translation repository configuration."""
+    """Translation repository configuration."""
 
-    schema_version: Literal[1]
-    locale: LocaleMetadata
+    schema_version: Literal[2]
     upstream: UpstreamConfig
     weblate: WeblateConfig = WeblateConfig()
     branches: BranchConfig = BranchConfig()
@@ -115,65 +64,26 @@ class TranslationConfig(StrictModel):
     @field_validator("versions")
     @classmethod
     def validate_versions(cls, value: dict[str, VersionConfig]) -> dict[str, VersionConfig]:
-        """Validate release-line names and ensure refs are not accidentally shared."""
         if not value:
             raise ValueError("at least one DSW version must be configured")
-
-        refs: set[str] = set()
         for key, version in value.items():
-            match = VERSION_KEY_PATTERN.fullmatch(key)
-            if not match:
-                raise ValueError(f"invalid version key {key!r}; expected v<major>.<minor>")
-            if version.upstream_ref in refs:
-                raise ValueError(f"upstream_ref {version.upstream_ref!r} is used more than once")
-            refs.add(version.upstream_ref)
-
-            expected_prefix = key.removeprefix("v") + "."
-            if not version.locale_version.startswith(expected_prefix):
-                raise ValueError(f"{key}.locale_version must start with {expected_prefix!r}")
-            if not version.recommended_app_version.startswith(expected_prefix):
-                raise ValueError(
-                    f"{key}.recommended_app_version must start with {expected_prefix!r}"
-                )
+            if not VERSION_KEY_PATTERN.fullmatch(key) or version.upstream_ref != key:
+                raise ValueError(f"version and upstream_ref must match v<major>.<minor>: {key!r}")
         return value
 
-    @model_validator(mode="after")
-    def require_live_version(self) -> TranslationConfig:
-        """Prevent a configuration with no releasable version."""
-        if all(version.state == "retired" for version in self.versions.values()):
-            raise ValueError("at least one version must be active or in maintenance")
-        return self
-
     def version(self, version_key: str) -> VersionConfig:
-        """Return one configured version or raise a concise user-facing error."""
         try:
             return self.versions[version_key]
         except KeyError as error:
-            supported = ", ".join(sorted(self.versions))
-            raise LocaleToolError(
-                f"Unknown version {version_key!r}; configured versions: {supported}"
-            ) from error
-
-    def preview(self, version_key: str) -> PreviewContentConfig:
-        """Return configured preview content or raise a concise error."""
-
-        preview = self.version(version_key).preview
-        if preview is None:
-            raise LocaleToolError(f"No preview content is configured for {version_key}")
-        return preview
+            raise LocaleToolError(f"Unknown DSW version: {version_key!r}") from error
 
 
 def load_config(path: str | Path) -> TranslationConfig:
-    """Load and validate a translation repository YAML configuration."""
-    config_path = Path(path)
-    if not config_path.is_file():
-        raise LocaleToolError(f"Configuration file does not exist: {config_path}")
-
+    """Read a configuration without accepting obsolete package settings."""
     try:
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as error:
-        raise LocaleToolError(f"Invalid YAML in {config_path}: {error}") from error
-
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as error:
+        raise LocaleToolError(f"Unable to read configuration: {path}") from error
     if not isinstance(data, dict):
-        raise LocaleToolError(f"Configuration root must be a mapping: {config_path}")
+        raise LocaleToolError("Configuration root must be a mapping")
     return TranslationConfig.model_validate(data)

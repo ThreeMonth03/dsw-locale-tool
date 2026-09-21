@@ -5,8 +5,7 @@
 build/
 dist/
 docs/_build/
-preview/runtime/
-review/runtime/
 *.egg-info/
 __pycache__/
 *.py[cod]
+reports/

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dsw-locale-tool"
-version = "0.1.0"
-description = "Synchronize, audit, and package Markdown translations for DSW UI locales"
+version = "0.2.0"
+description = "Synchronize Markdown translations with official DSW Weblate catalogs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -26,18 +26,12 @@ dev = [
   "ruff>=0.12.12,<1",
   "Sphinx>=8,<9",
 ]
-preview = [
-  "playwright>=1.50,<2",
-]
 
 [project.scripts]
 dsw-locale = "dsw_locale_tool.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-dsw_locale_tool = ["review_site/*"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

@@ -1,51 +1,43 @@
-"""Locale audit tests."""
+"""Keep official diagnostics separate from contribution failures."""
 
-from __future__ import annotations
+from dataclasses import replace
 
-from dsw_locale_tool.audit import audit_repository, failing_categories, render_markdown
+from dsw_locale_tool.audit import audit_repository, failing_categories, write_reports
+from dsw_locale_tool.catalog import load_catalog
+from dsw_locale_tool.translation_tree import load_translation_tree, write_translation_tree
 from tests.conftest import make_translation_tree
 
 
-def test_audit_classifies_translation_work(tmp_path):
-    make_translation_tree(tmp_path)
-
-    report = audit_repository(tmp_path)
-    wizard = report["components"]["wizard"]
-
-    assert wizard["counts"] == {
-        "source_messages": 3,
-        "upstream_translated": 1,
-        "effective_translated": 2,
-        "missing": 1,
-        "fuzzy": 0,
-        "translation_units": 2,
-        "completed_units": 1,
-        "blank_units": 1,
-        "unscaffolded": 0,
-        "stale_translations": 0,
-        "redundant_translations": 0,
-        "structure_issues": 0,
-        "placeholder_issues": 1,
-    }
-    assert wizard["missing"][0]["msgid"] == "Still missing"
-    assert wizard["placeholder_issues"][0]["expected"] == {"%s": 1}
-
-
-def test_audit_failure_policy_is_explicit(tmp_path):
+def test_local_placeholder_loss_fails(tmp_path):
     make_translation_tree(tmp_path)
     report = audit_repository(tmp_path)
-
-    assert failing_categories(report, set()) == []
-    assert failing_categories(report, {"missing", "placeholders"}) == [
-        "missing",
-        "placeholders",
-    ]
+    assert failing_categories(report, {"placeholders", "structure"}) == ["placeholders"]
+    assert report["components"]["wizard"]["counts"]["empty"] == 2
 
 
-def test_markdown_contains_summary_and_findings(tmp_path):
+def test_official_placeholder_error_is_reported_not_blocking(tmp_path):
     make_translation_tree(tmp_path)
+    units = load_translation_tree(tmp_path)
+    key = ("wizard", None, "Count: %s")
+    units[key] = replace(units[key], translation="數量：%s")
+    write_translation_tree(tmp_path, units)
+    path = tmp_path / "upstream/wizard.po"
+    po = load_catalog(path)
+    po.find("Count: %s").msgstr = "舊譯文缺參數"
+    po.save(path)
+    report = audit_repository(tmp_path)
+    assert not failing_categories(report, {"placeholders", "structure"})
+    assert report["components"]["wizard"]["upstream_placeholder_issues"]
+    write_reports(report, tmp_path / "reports")
 
-    markdown = render_markdown(audit_repository(tmp_path))
 
-    assert "| wizard | 3 | 1 | 2 | 1 | 2 | 1 | 0 | 1 |" in markdown
-    assert "`Still missing`" in markdown
+def test_fuzzy_is_not_counted_as_empty(tmp_path):
+    make_translation_tree(tmp_path)
+    path = tmp_path / "upstream/wizard.po"
+    po = load_catalog(path)
+    po.find("Still missing").msgstr = "既有譯文"
+    po.find("Still missing").flags = ["fuzzy"]
+    po.save(path)
+    counts = audit_repository(tmp_path)["components"]["wizard"]["counts"]
+    assert counts["empty"] == 1
+    assert counts["fuzzy"] == 1

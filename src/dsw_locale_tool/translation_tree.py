@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import re
@@ -15,7 +14,6 @@ import polib
 
 from dsw_locale_tool.catalog import (
     catalog_index,
-    entry_is_translated,
     entry_key,
     load_catalog,
     translated_strings,
@@ -237,9 +235,7 @@ def parse_translation_unit(path: Path, repository_root: Path) -> TranslationUnit
     return unit
 
 
-def _load_translation_tree(
-    root: str | Path, *, validate_generated_index: bool
-) -> dict[UnitKey, TranslationUnit]:
+def load_translation_tree(root: str | Path) -> dict[UnitKey, TranslationUnit]:
     repository_root = Path(root).resolve()
     translations_root = repository_root / TRANSLATIONS_DIRECTORY
     if translations_root.is_symlink() or not translations_root.is_dir():
@@ -266,14 +262,7 @@ def _load_translation_tree(
         if unit.key in units:
             raise LocaleToolError(f"Duplicate translation unit identity: {unit.key!r}")
         units[unit.key] = unit
-    if validate_generated_index and index_path.read_text(encoding="utf-8") != _render_index(units):
-        raise LocaleToolError(f"Generated translation index is out of date: {index_path}")
     return units
-
-
-def load_translation_tree(root: str | Path) -> dict[UnitKey, TranslationUnit]:
-    """Load every translation unit and reject unknown or stale tree content."""
-    return _load_translation_tree(root, validate_generated_index=True)
 
 
 def _entry_translation(entry: polib.POEntry) -> str:
@@ -298,10 +287,7 @@ def _entry_unit(component: str, entry: polib.POEntry, translation: str = "") -> 
 
 def _same_upstream_translation(unit: TranslationUnit, entry: polib.POEntry | None) -> bool:
     return bool(
-        unit.translation
-        and entry_is_translated(entry)
-        and entry is not None
-        and unit.translation == _entry_translation(entry)
+        unit.translation and entry is not None and unit.translation == _entry_translation(entry)
     )
 
 
@@ -337,7 +323,7 @@ def desired_translation_units(
             translation = previous.translation if previous is not None else ""
             unit = _entry_unit(component, entry, translation)
             baseline_entry = baseline_index.get(entry_key(entry))
-            if not entry_is_translated(baseline_entry):
+            if baseline_entry is None or not any(translated_strings(baseline_entry)):
                 desired[key] = unit
             elif (
                 previous is not None
@@ -436,11 +422,7 @@ def refresh_translation_tree(root: str | Path) -> dict[str, int]:
     """Regenerate translation forms from the official baseline without losing translations."""
     repository_root = Path(root).resolve()
     translations_root = repository_root / TRANSLATIONS_DIRECTORY
-    current = (
-        _load_translation_tree(repository_root, validate_generated_index=False)
-        if translations_root.exists()
-        else {}
-    )
+    current = load_translation_tree(repository_root) if translations_root.exists() else {}
     desired = desired_translation_units(repository_root, current)
     write_translation_tree(repository_root, desired)
 
@@ -449,51 +431,3 @@ def refresh_translation_tree(root: str | Path) -> dict[str, int]:
         "completed": sum(bool(unit.translation) for unit in desired.values()),
         "blank": sum(not unit.translation for unit in desired.values()),
     }
-
-
-def build_component_catalog(root: str | Path, component: str) -> polib.POFile:
-    """Apply completed Markdown units to one official PO catalog."""
-    if component not in COMPONENTS:
-        raise LocaleToolError(f"Unsupported DSW component: {component!r}")
-    repository_root = Path(root).resolve()
-    template = load_catalog(repository_root / "upstream" / f"{component}.pot")
-    result = copy.deepcopy(load_catalog(repository_root / "upstream" / f"{component}.po"))
-    template_index = catalog_index(template)
-    result_index = catalog_index(result)
-    units = {
-        key: unit
-        for key, unit in load_translation_tree(repository_root).items()
-        if unit.component == component
-    }
-
-    for entry in template:
-        if entry.obsolete or not entry.msgid:
-            continue
-        key: UnitKey = (component, *entry_key(entry))
-        baseline_entry = result_index.get(entry_key(entry))
-        if not entry_is_translated(baseline_entry) and key not in units:
-            raise LocaleToolError(f"Missing translation form for source: {entry.msgid!r}")
-
-    for unit in units.values():
-        catalog_key = (unit.msgctxt, unit.msgid)
-        template_entry = template_index.get(catalog_key)
-        if template_entry is None:
-            raise LocaleToolError(
-                f"Translation form source is absent from upstream: {unit.msgid!r}"
-            )
-        if not unit.translation:
-            continue
-
-        existing = result_index.get(catalog_key)
-        if existing is not None and _same_upstream_translation(unit, existing):
-            raise LocaleToolError(f"Local translation is identical to upstream: {unit.msgid!r}")
-        replacement = copy.deepcopy(template_entry)
-        replacement.flags = [flag for flag in replacement.flags if flag != "fuzzy"]
-        replacement.msgstr = "" if unit.msgid_plural else unit.translation
-        replacement.msgstr_plural = {"0": unit.translation} if unit.msgid_plural else {}
-        if existing is None:
-            result.append(replacement)
-        else:
-            result[result.index(existing)] = replacement
-        result_index[catalog_key] = replacement
-    return result

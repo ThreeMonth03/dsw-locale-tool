@@ -1,22 +1,16 @@
-"""Validate the scope and version metadata of translation pull requests."""
+"""Validate translation pull requests without executing contributor code."""
 
 from __future__ import annotations
 
-import copy
 import os
-import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 from dsw_locale_tool.catalog import catalog_index, load_catalog
 from dsw_locale_tool.config import load_config
 from dsw_locale_tool.errors import LocaleToolError
 from dsw_locale_tool.translation_tree import parse_translation_unit
-
-RELEASE_VERSION_PATTERN = re.compile(r"^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 
 
 def _repository_files(root: Path) -> dict[str, tuple[str, bytes]]:
@@ -46,56 +40,12 @@ def _translation_path_allowed(path: str) -> bool:
         "README.md",
         "CONTRIBUTING.md",
         "glossary/zh-Hant.csv",
-        "locale/README.md",
         "translations/README.md",
-        "translation-config.yml",
     }:
         return True
     if len(parts) >= 3 and parts[0] == "translations":
         return parts[1] in {"wizard", "mail"} and path.endswith(".translation.md")
     return len(parts) >= 2 and parts[0] == "docs" and candidate.suffix == ".md"
-
-
-def _yaml_mapping(path: Path) -> dict[str, Any]:
-    try:
-        value = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as error:
-        raise LocaleToolError(f"Unable to read configuration for PR validation: {path}") from error
-    if not isinstance(value, dict):
-        raise LocaleToolError(f"Configuration root must be a mapping: {path}")
-    return value
-
-
-def _release_tuple(value: str) -> tuple[int, int, int]:
-    match = RELEASE_VERSION_PATTERN.fullmatch(value)
-    if not match:
-        raise LocaleToolError(f"Locale release version must use X.Y.Z: {value!r}")
-    return tuple(int(match.group(name)) for name in ("major", "minor", "patch"))
-
-
-def _validate_config_change(base_path: Path, head_path: Path, version_key: str) -> bool:
-    base = _yaml_mapping(base_path)
-    head = _yaml_mapping(head_path)
-    if base == head:
-        return False
-
-    try:
-        base_version = base["versions"][version_key]["locale_version"]
-        head_version = head["versions"][version_key]["locale_version"]
-    except (KeyError, TypeError) as error:
-        raise LocaleToolError(
-            f"Both configurations must contain {version_key}.locale_version"
-        ) from error
-
-    normalized = copy.deepcopy(head)
-    normalized["versions"][version_key]["locale_version"] = base_version
-    if normalized != base:
-        raise LocaleToolError(
-            "translation-config.yml may only bump locale_version for the target release line"
-        )
-    if _release_tuple(head_version) <= _release_tuple(base_version):
-        raise LocaleToolError(f"locale_version must increase: {base_version!r} -> {head_version!r}")
-    return True
 
 
 def validate_translation_pr(
@@ -128,11 +78,6 @@ def validate_translation_pr(
             "Translation PR must not add symlinks: " + ", ".join(f"{path!r}" for path in symlinks)
         )
 
-    version_bumped = _validate_config_change(
-        base / "translation-config.yml",
-        head / "translation-config.yml",
-        version_key,
-    )
     forms = [path for path in changed if path.endswith(".translation.md")]
     for path in forms:
         if not (head / path).is_file():
@@ -158,5 +103,4 @@ def validate_translation_pr(
             for path in changed
         ),
         "changed_paths": changed,
-        "locale_version_bumped": version_bumped,
     }

@@ -1,0 +1,86 @@
+name: Submit translations to Weblate
+on:
+  workflow_call:
+    inputs:
+      tool_ref:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      apply:
+        type: boolean
+        default: false
+      allow_corrections:
+        type: boolean
+        default: false
+      limit:
+        type: number
+        default: 20
+      expected_plan:
+        type: string
+        default: ""
+    secrets:
+      LOCALIZE_API_TOKEN:
+        required: false
+permissions:
+  contents: read
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate selected version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected version v<major>.<minor>"
+            exit 1
+          fi
+      - uses: actions/checkout@v6
+        with:
+          repository: ThreeMonth03/dsw-locale-tool
+          ref: ${{ inputs.tool_ref }}
+          path: tool
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: sync/${{ inputs.version }}
+          path: locale
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Record translation revision
+        run: echo "Translation revision $(git -C locale rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - run: python -m pip install ./tool
+      - name: Prepare or apply a bounded translation batch
+        env:
+          VERSION: ${{ inputs.version }}
+          APPLY: ${{ inputs.apply }}
+          CORRECTIONS: ${{ inputs.allow_corrections }}
+          LIMIT: ${{ inputs.limit }}
+          EXPECTED_PLAN: ${{ inputs.expected_plan }}
+          LOCALIZE_API_TOKEN: ${{ secrets.LOCALIZE_API_TOKEN }}
+        run: |
+          args=(--config control/translation-config.yml --version "$VERSION" --root locale --report-dir reports --limit "$LIMIT")
+          if [ "$APPLY" = true ]; then args+=(--apply --expected-plan "$EXPECTED_PLAN"); fi
+          if [ "$CORRECTIONS" = true ]; then args+=(--allow-corrections); fi
+          dsw-locale submit "${args[@]}"
+      - name: Publish submission summary
+        if: always()
+        run: |
+          if [ -f reports/submission.md ]; then
+            cat reports/submission.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: weblate-${{ inputs.version }}
+          path: reports/
