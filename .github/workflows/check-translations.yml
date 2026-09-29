@@ -57,4 +57,5 @@ jobs:
         if: always()
         with:
           name: translation-checks
+          retention-days: 14
           path: reports/

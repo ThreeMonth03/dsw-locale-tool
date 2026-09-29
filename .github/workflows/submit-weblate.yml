@@ -82,5 +82,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
+          retention-days: 14
           name: weblate-${{ inputs.version }}
           path: reports/

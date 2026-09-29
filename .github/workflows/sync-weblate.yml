@@ -45,6 +45,7 @@ jobs:
         if: always()
         with:
           name: version-discovery
+          retention-days: 7
           path: reports/
   sync:
     needs: discover
@@ -108,4 +109,5 @@ jobs:
         if: always()
         with:
           name: sync-${{ matrix.version }}
+          retention-days: 7
           path: reports/

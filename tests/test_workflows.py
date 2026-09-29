@@ -13,6 +13,19 @@ def workflow(name):
     return yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
 
 
+def test_artifact_uploads_have_bounded_retention():
+    uploads = []
+    for path in (ROOT / ".github/workflows").glob("*.y*ml"):
+        data = workflow(path.name)
+        for job in data.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if step.get("uses", "").startswith("actions/upload-artifact@"):
+                    expected = "7" if path.name == "sync-weblate.yml" else "14"
+                    assert step["with"].get("retention-days") == expected, path.name
+                    uploads.append(step)
+    assert uploads
+
+
 def test_sync_has_no_runtime_dependency_or_web_credentials():
     data = workflow("sync-weblate.yml")
     text = str(data)
