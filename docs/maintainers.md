@@ -34,9 +34,10 @@ update timestamp. It writes only the target and fuzzy state of the selected unit
 It reads back the result immediately and after a settling interval, then compares downloaded
 PO files for unexpected changes. Reports and preflight backups are uploaded even on failure.
 
-Synchronization reports expire after 7 days. Pull-request checks and submission
-reports, including preflight backups, expire after 14 days. Download any evidence
-needed for a longer review before it expires.
+Synchronization and pull-request checks publish their reports in the Actions
+job summary without uploading attachments. Explicit submission runs retain
+their reports, delta PO files, and preflight backups for 14 days, including on
+failure. Download evidence needed for a longer review before it expires.
 
 Weblate does not provide an atomic compare-and-set operation here. A concurrent edit between
 the last check and write remains possible; coordinate review batches with other editors.

@@ -20,10 +20,17 @@ def test_artifact_uploads_have_bounded_retention():
         for job in data.get("jobs", {}).values():
             for step in job.get("steps", []):
                 if step.get("uses", "").startswith("actions/upload-artifact@"):
-                    expected = "7" if path.name == "sync-weblate.yml" else "14"
-                    assert step["with"].get("retention-days") == expected, path.name
+                    assert path.name == "submit-weblate.yml"
+                    assert step["with"].get("retention-days") == "14"
                     uploads.append(step)
-    assert uploads
+    assert len(uploads) == 1
+
+
+def test_routine_reports_only_use_job_summaries():
+    for name in ("sync-weblate.yml", "check-translations.yml"):
+        text = str(workflow(name))
+        assert "GITHUB_STEP_SUMMARY" in text
+        assert "upload-artifact" not in text
 
 
 def test_sync_has_no_runtime_dependency_or_web_credentials():

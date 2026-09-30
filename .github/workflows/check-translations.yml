@@ -53,9 +53,3 @@ jobs:
           if [ -f reports/audit.md ]; then
             cat reports/audit.md >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: translation-checks
-          retention-days: 14
-          path: reports/
