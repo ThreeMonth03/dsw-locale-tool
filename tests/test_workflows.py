@@ -57,6 +57,14 @@ def test_pr_checks_have_no_write_permissions_or_secret():
     assert "secrets" not in data["on"]["workflow_call"]
     assert "pip install ./head" not in str(data)
     assert "persist-credentials': 'false'" in str(data)
+    steps = data["jobs"]["check"]["steps"]
+    control = next(
+        step for step in steps if step.get("name") == "Check out trusted shared workflows"
+    )
+    assert control["with"]["repository"] == "${{ github.repository }}"
+    assert control["with"]["ref"] == "main"
+    assert control["with"]["persist-credentials"] == "false"
+    assert "--control-root control" in str(data)
 
 
 def test_workflows_use_executable_bash_syntax(tmp_path):

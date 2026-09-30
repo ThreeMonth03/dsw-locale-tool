@@ -55,3 +55,9 @@ Test a new tool commit first, then update the pins on the control branch and mai
 branches. Synchronization distributes contributor documentation and configuration, not workflow
 files. New version branches inherit the current control-branch workflows.
 Do not use a floating tool branch for privileged jobs.
+
+Update and review shared workflows on `main` first. Version-branch PRs may then
+copy those exact workflow files: CI compares their bytes against a separate
+read-only checkout of `main`. Different content, workflow deletion, symlinks,
+and changes to other protected files remain rejected. The checked control
+commit is recorded in the job summary.
