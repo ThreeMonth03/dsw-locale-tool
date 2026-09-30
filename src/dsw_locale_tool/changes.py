@@ -52,6 +52,8 @@ def validate_translation_pr(
     base_root: str | Path,
     head_root: str | Path,
     branch: str,
+    *,
+    control_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Validate one PR targeting a ``sync/vX.Y`` translation branch."""
     base = Path(base_root).resolve()
@@ -66,7 +68,13 @@ def validate_translation_pr(
     base_config.version(version_key)
 
     changed = _changed_paths(base, head)
-    forbidden = [path for path in changed if not _translation_path_allowed(path)]
+    control = Path(control_root).resolve() if control_root is not None else None
+    forbidden = [
+        path
+        for path in changed
+        if not _translation_path_allowed(path)
+        and not _matches_control_workflow(path, head, control)
+    ]
     if forbidden:
         raise LocaleToolError(
             "Translation PR changes forbidden paths: "
@@ -104,3 +112,24 @@ def validate_translation_pr(
         ),
         "changed_paths": changed,
     }
+
+
+def _matches_control_workflow(path: str, head: Path, control: Path | None) -> bool:
+    """Allow only byte-identical copies of workflows from a trusted control checkout."""
+    relative = Path(path)
+    if (
+        control is None
+        or len(relative.parts) != 3
+        or relative.parts[:2] != (".github", "workflows")
+        or relative.suffix not in {".yml", ".yaml"}
+    ):
+        return False
+    for root in (head, control):
+        current = root
+        for part in relative.parts:
+            current /= part
+            if current.is_symlink():
+                return False
+        if not current.is_file():
+            return False
+    return (head / relative).read_bytes() == (control / relative).read_bytes()

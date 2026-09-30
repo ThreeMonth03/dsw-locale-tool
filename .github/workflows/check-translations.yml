@@ -40,6 +40,13 @@ jobs:
           ref: ${{ inputs.head_sha }}
           path: head
           persist-credentials: false
+      - name: Check out trusted shared workflows
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: main
+          path: control
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -47,7 +54,9 @@ jobs:
       - name: Validate data without executing contributor code
         env:
           BRANCH: ${{ inputs.branch }}
-        run: dsw-locale validate-pr --base-root base --head-root head --branch "$BRANCH" --report-dir reports
+        run: |
+          echo "Shared workflow baseline: $(git -C control rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          dsw-locale validate-pr --base-root base --head-root head --control-root control --branch "$BRANCH" --report-dir reports
       - if: always()
         run: |
           if [ -f reports/audit.md ]; then

@@ -140,3 +140,48 @@ def test_translation_pr_rejects_upstream_change(tmp_path):
 
     with pytest.raises(LocaleToolError, match="forbidden paths"):
         validate_translation_pr(base, head, "sync/v4.32")
+
+
+@pytest.mark.parametrize(
+    "operation", ["copy", "different", "missing-control", "delete", "symlink", "parent-symlink"]
+)
+def test_workflow_maintenance_requires_exact_trusted_copy(tmp_path, operation):
+    base, head, control = (tmp_path / name for name in ("base", "head", "control"))
+    _translation_tree(base)
+    relative = ".github/workflows/check.yml"
+    original = base / relative
+    original.parent.mkdir(parents=True)
+    original.write_text("old workflow\n")
+    shutil.copytree(base, head)
+    shutil.copytree(base, control)
+    (control / relative).write_text("reviewed workflow\n")
+    candidate = head / relative
+    candidate.write_text("reviewed workflow\n")
+    if operation == "different":
+        candidate.write_text("unreviewed workflow\n")
+    elif operation == "delete":
+        candidate.unlink()
+    elif operation == "symlink":
+        candidate.unlink()
+        candidate.symlink_to(control / relative)
+    elif operation == "parent-symlink":
+        shutil.rmtree(head / ".github")
+        (head / ".github").symlink_to(control / ".github", target_is_directory=True)
+    trusted = None if operation == "missing-control" else control
+    if operation == "copy":
+        report = validate_translation_pr(base, head, "sync/v4.32", control_root=trusted)
+        assert report["valid"] and not report["translation_changed"]
+    else:
+        with pytest.raises(LocaleToolError, match="forbidden paths"):
+            validate_translation_pr(base, head, "sync/v4.32", control_root=trusted)
+
+
+def test_control_checkout_does_not_allow_other_protected_files(tmp_path):
+    base, head, control = (tmp_path / name for name in ("base", "head", "control"))
+    _translation_tree(base)
+    shutil.copytree(base, head)
+    shutil.copytree(base, control)
+    for root in (head, control):
+        (root / "upstream/wizard.po").write_text("identical but not allowed\n")
+    with pytest.raises(LocaleToolError, match="forbidden paths"):
+        validate_translation_pr(base, head, "sync/v4.32", control_root=control)

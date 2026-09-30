@@ -33,6 +33,9 @@ def parser() -> argparse.ArgumentParser:
     command = commands.add_parser("validate-pr")
     command.add_argument("--base-root", type=Path, required=True)
     command.add_argument("--head-root", type=Path, required=True)
+    command.add_argument(
+        "--control-root", type=Path, help="Trusted checkout for shared workflow updates."
+    )
     command.add_argument("--branch", required=True)
     command.add_argument("--report-dir", type=Path, default=Path("reports"))
     for name in ("validate-config", "sync-upstream", "reconcile-versions", "submit"):
@@ -67,7 +70,9 @@ def run(args) -> dict:
     if args.command == "refresh-tree":
         return refresh_translation_tree(args.root)
     if args.command == "validate-pr":
-        report = validate_translation_pr(args.base_root, args.head_root, args.branch)
+        report = validate_translation_pr(
+            args.base_root, args.head_root, args.branch, control_root=args.control_root
+        )
         check(args.head_root, args.report_dir)
         (args.report_dir / "pr.json").write_text(
             json.dumps(report, indent=2) + "\n", encoding="utf-8"
